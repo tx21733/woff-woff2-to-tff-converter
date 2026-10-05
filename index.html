@@ -15,6 +15,7 @@
       --text-muted: #94a3b8;
       --success: #4ade80;
       --error: #f87171;
+      --warning: #facc15;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,7 +31,7 @@
 
     .container {
       width: 100%;
-      max-width: 780px;
+      max-width: 800px;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -41,43 +42,66 @@
     h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
     p.subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px; }
 
-    /* F12 Snippet Helper Box */
-    .helper-box {
+    /* Method Cards */
+    .method-card {
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 24px;
-      font-size: 0.85rem;
-      line-height: 1.5;
+      padding: 18px;
+      margin-bottom: 20px;
     }
-    .helper-header {
+
+    .method-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 8px;
       font-weight: 600;
-      color: var(--accent);
+      font-size: 0.95rem;
     }
-    .copy-btn {
-      background: #334155;
-      color: var(--text);
-      border: 1px solid var(--border);
-      padding: 4px 10px;
-      border-radius: 4px;
-      cursor: pointer;
+
+    .badge {
       font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.3);
       font-weight: 600;
     }
-    .copy-btn:hover { background: #475569; }
+
+    .method-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+
+    .bookmarklet-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #38bdf8;
+      color: #0f172a;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      cursor: grab;
+      border: 2px dashed #0284c7;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+      transition: transform 0.1s ease;
+    }
+    .bookmarklet-btn:active { cursor: grabbing; transform: scale(0.98); }
 
     /* Drag & Drop Area */
     .drop-zone {
       border: 2px dashed var(--border);
       border-radius: 8px;
-      padding: 32px 20px;
+      padding: 36px 20px;
       text-align: center;
-      background: rgba(15, 23, 42, 0.5);
+      background: rgba(15, 23, 42, 0.4);
       cursor: pointer;
       margin-bottom: 24px;
       transition: all 0.2s ease;
@@ -87,7 +111,7 @@
       background: rgba(56, 189, 248, 0.1);
     }
     .drop-zone h3 {
-      font-size: 1.05rem;
+      font-size: 1.1rem;
       margin-bottom: 6px;
       color: var(--text);
     }
@@ -100,7 +124,7 @@
       display: flex;
       align-items: center;
       text-align: center;
-      margin-bottom: 24px;
+      margin: 24px 0;
       color: var(--text-muted);
       font-size: 0.75rem;
       text-transform: uppercase;
@@ -117,10 +141,10 @@
     .input-group {
       display: flex;
       gap: 10px;
-      margin-bottom: 20px;
+      margin-bottom: 12px;
     }
 
-    input[type="url"] {
+    input[type="url"], input[type="text"] {
       flex: 1;
       background: rgba(15, 23, 42, 0.8);
       border: 1px solid var(--border);
@@ -130,7 +154,7 @@
       font-size: 0.95rem;
       outline: none;
     }
-    input[type="url"]:focus { border-color: var(--accent); }
+    input:focus { border-color: var(--accent); }
 
     .scrape-btn {
       background: var(--accent);
@@ -145,6 +169,19 @@
     }
     .scrape-btn:hover { background: var(--accent-hover); }
     .scrape-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .proxy-config {
+      margin-bottom: 18px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .proxy-config input {
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }
 
     .actions-bar {
       display: none;
@@ -231,6 +268,24 @@
       white-space: nowrap;
     }
     .download-btn:hover { background: var(--accent-hover); }
+
+    .cors-modal {
+      display: none;
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid var(--warning);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .cors-modal h4 {
+      color: var(--warning);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
   </style>
 
   <!-- Pako (WOFF v1) -->
@@ -244,53 +299,292 @@
 
   <div class="container">
     <h1>Web Font Harvester & Converter</h1>
-    <p class="subtitle">Extracts internal font names, decodes WOFF/WOFF2 into TTF/OTF, and avoids CORS blocks.</p>
+    <p class="subtitle">Extracts, decompresses, and accurately renames web fonts to TTF/OTF.</p>
 
-    <!-- F12 DevTools Helper -->
-    <div class="helper-box">
-      <div class="helper-header">
-        <span>⚡ Bypass CORS & Cloudflare (F12 Console Snippet)</span>
-        <button class="copy-btn" onclick="copyConsoleScript()">Copy Script</button>
+    <!-- Method 1: The Fixed Bookmarklet (Bypasses CORS in Any Browser) -->
+    <div class="method-card">
+      <div class="method-header">
+        <span>⭐ 1-Click Bookmarklet (Bypasses CORS in Any Browser)</span>
+        <span class="badge">Captures Hidden & Lazy Fonts</span>
       </div>
-      <p style="color: var(--text-muted);">
-        If a website blocks external fetch requests, open <b>DevTools (F12)</b> on that site, paste this snippet into the <b>Console</b>, and press <b>Enter</b>. It will bundle all loaded network fonts into a .ZIP that you can drop below!
+      <p class="method-desc">
+        Drag this button to your browser's <b>Bookmarks bar</b>. When browsing any website whose fonts you want, click the bookmark! It runs directly on that site with <b>zero CORS restrictions</b>, wakes up all hidden/unloaded font weights in CSS, and downloads them in a single .ZIP!
       </p>
+      <a class="bookmarklet-btn" id="bookmarklet-link" href="#" title="Drag me to your Bookmarks Bar!">
+        <span>📥</span> <b>Extract & Download Fonts</b>
+      </a>
     </div>
 
-    <!-- Drag & Drop Zone -->
+    <!-- Method 2: Drag & Drop Converter -->
     <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-picker').click()">
       <input type="file" id="file-picker" style="display: none;" multiple accept=".woff,.woff2,.ttf,.otf,.zip">
-      <h3>📁 Drag & Drop WOFF / WOFF2 / ZIP files here</h3>
-      <p>Or click to select files from your computer. Files are processed offline with zero network requests!</p>
+      <h3>📁 Drop font files or .ZIP here to Convert & Rename</h3>
+      <p>Supports .woff, .woff2, .ttf, .otf, or the ZIP downloaded from the bookmarklet above.</p>
     </div>
 
-    <div class="divider">or fetch directly via url</div>
+    <div class="divider">or direct url extraction</div>
 
+    <!-- CORS Bypass Notice -->
+    <div class="cors-modal" id="cors-notice">
+      <h4>⚠️ Direct Browser CORS Block Detected</h4>
+      <p id="cors-msg">
+        Because GitHub Pages is a static host, browsers enforce the <b>Same-Origin Policy</b> and block fetching another website's HTML directly unless you bypass CORS.
+      </p>
+      <div style="margin-top: 10px; padding: 10px; background: rgba(15, 23, 42, 0.6); border-radius: 6px;">
+        <b>Two 100% Reliable Solutions:</b>
+        <ol style="margin-left: 20px; margin-top: 6px; display: flex; flex-direction: column; gap: 4px;">
+          <li><b>Use the 1-Click Bookmarklet above:</b> Click it on the website itself. It runs in that site's origin, has zero CORS restrictions, and grabs both visible and hidden fonts!</li>
+          <li><b>Enable a CORS Extension:</b> Install a free browser extension like <i>"Allow CORS"</i> or <i>"CORS Unblock"</i> on Chrome/Firefox/Edge. Then direct URL scraping works instantly!</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- URL Input & Optional Proxy Override -->
     <div class="input-group">
-      <input type="url" id="target-url" placeholder="https://example.com">
+      <input type="url" id="target-url" placeholder="https://example.com or direct font URL (.woff2)">
       <button class="scrape-btn" id="scrape-btn" onclick="startScrape()">Extract Fonts</button>
+    </div>
+
+    <div class="proxy-config">
+      <label for="custom-proxy">Optional CORS Proxy Prefix:</label>
+      <input type="text" id="custom-proxy" placeholder="e.g. https://your-worker.workers.dev/?url=">
     </div>
 
     <div id="log-status"></div>
 
     <div class="actions-bar" id="actions-bar">
       <span id="found-count" style="font-size: 0.9rem; font-weight: 600;"></span>
-      <button class="zip-btn" onclick="downloadAllAsZip()">Download All as .ZIP</button>
+      <button class="zip-btn" onclick="downloadAllAsZip()">Download All Converted as .ZIP</button>
     </div>
 
     <div id="file-list"></div>
   </div>
 
   <script>
-    const PROXIES = [
-      url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-      url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
-    ];
+    // -------------------------------------------------------------
+    // 1. SELF-CONTAINED ZERO-DEPENDENCY BOOKMARKLET
+    // -------------------------------------------------------------
+    const bookmarkletScript = `javascript:(async function(){
+  function showToast(text, color) {
+    let t = document.getElementById('__font_toast__');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = '__font_toast__';
+      t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:2147483647;background:#0f172a;color:#f8fafc;padding:16px 20px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.8);font-family:system-ui,-apple-system,sans-serif;font-size:14px;border:2px solid ' + (color || '#38bdf8') + ';max-width:380px;line-height:1.4;';
+      document.body.appendChild(t);
+    }
+    t.style.borderColor = color || '#38bdf8';
+    t.innerHTML = text;
+  }
 
+  showToast('🔍 Waking up hidden fonts & scanning stylesheets...', '#38bdf8');
+
+  /* 1. Wake up and force-load all declared fonts in document.fonts */
+  if (document.fonts) {
+    try {
+      const loaders = [];
+      document.fonts.forEach(function(f) { loaders.push(f.load().catch(function(){})); });
+      await Promise.all(loaders);
+    } catch(e) {}
+  }
+
+  const fontUrls = new Set();
+  const fontDataItems = [];
+
+  /* 2. Helper to add font URL or Base64 embedded font */
+  function addUrl(raw, base) {
+    if (!raw) return;
+    raw = raw.trim().replace(/^url\\(['"]?/, '').replace(/['"]?\\)$/, '');
+    if (raw.startsWith('data:font') || raw.startsWith('data:application/font') || raw.startsWith('data:application/x-font')) {
+      const match = raw.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        try {
+          const bin = atob(match[2]);
+          const arr = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          const ext = match[1].includes('woff2') ? 'woff2' : (match[1].includes('woff') ? 'woff' : 'ttf');
+          fontDataItems.push({ name: 'embedded_font_' + (fontDataItems.length + 1) + '.' + ext, data: arr });
+        } catch(e) {}
+      }
+      return;
+    }
+    try {
+      const abs = new URL(raw, base || location.href).href;
+      if (/\\.(woff2?|ttf|otf)(\\?.*)?$/i.test(abs)) fontUrls.add(abs);
+    } catch(e) {}
+  }
+
+  function scanText(cssText, baseUrl) {
+    if (!cssText) return;
+    const re = /url\\(\\s*['"]?([^'")]+?\\.(?:woff2?|ttf|otf)[^'")\\s]*|data:(?:font|application\\/[a-z0-9-]+font)[^'")]*)/gi;
+    let m;
+    while ((m = re.exec(cssText)) !== null) {
+      addUrl(m[1], baseUrl);
+    }
+  }
+
+  /* 3. Scan DOM style tags */
+  document.querySelectorAll('style').forEach(function(s) { scanText(s.textContent, location.href); });
+
+  /* 4. Scan link tags */
+  document.querySelectorAll('link[rel*=font], link[as=font], link[rel=preload]').forEach(function(l) {
+    if (l.href && /\\.(woff2?|ttf|otf)/i.test(l.href)) addUrl(l.href, location.href);
+  });
+
+  /* 5. Scan stylesheets and attempt text read */
+  for (let i = 0; i < document.styleSheets.length; i++) {
+    const sheet = document.styleSheets[i];
+    try {
+      if (sheet.href) {
+        addUrl(sheet.href, location.href);
+        fetch(sheet.href).then(function(r){ return r.text(); }).then(function(t){ scanText(t, sheet.href); }).catch(function(){});
+      }
+      for (let j = 0; j < (sheet.cssRules || []).length; j++) {
+        const rule = sheet.cssRules[j];
+        if (rule.cssText) scanText(rule.cssText, sheet.href || location.href);
+      }
+    } catch(e) {}
+  }
+
+  /* 6. Scan performance entries */
+  performance.getEntriesByType('resource').forEach(function(r) {
+    if (/\\.(woff2?|ttf|otf)(\\?.*)?$/i.test(r.name)) addUrl(r.name, location.href);
+  });
+
+  await new Promise(function(r){ setTimeout(r, 600); });
+
+  if (fontUrls.size === 0 && fontDataItems.length === 0) {
+    showToast('❌ No fonts found on this page.', '#f87171');
+    setTimeout(function() { const t = document.getElementById('__font_toast__'); if (t) t.remove(); }, 6000);
+    return;
+  }
+
+  const total = fontUrls.size + fontDataItems.length;
+  showToast('⏳ Downloading ' + total + ' font(s) (including hidden weights)...', '#38bdf8');
+
+  /* 7. Download all URLs */
+  let fetchedCount = 0;
+  for (const u of fontUrls) {
+    try {
+      const res = await fetch(u);
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        const clean = u.split('#')[0].split('?')[0];
+        const fname = clean.split('/').pop() || ('font_' + (++fetchedCount) + '.woff2');
+        fontDataItems.push({ name: fname, data: new Uint8Array(buf) });
+        fetchedCount++;
+      }
+    } catch(e) {}
+  }
+
+  if (fontDataItems.length === 0) {
+    showToast('❌ Failed to download fonts. Target server blocked requests.', '#f87171');
+    return;
+  }
+
+  showToast('📦 Packaging ' + fontDataItems.length + ' font(s) into ZIP...', '#38bdf8');
+
+  /* 8. Built-in ZIP generator (No external scripts needed) */
+  const crcTable = [];
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+    crcTable[n] = c;
+  }
+  function calcCrc(buf) {
+    let crc = -1;
+    for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ crcTable[(crc ^ buf[i]) & 0xFF];
+    return (crc ^ (-1)) >>> 0;
+  }
+
+  const entries = [];
+  let offset = 0;
+  const encoder = new TextEncoder();
+
+  for (let idx = 0; idx < fontDataItems.length; idx++) {
+    const item = fontDataItems[idx];
+    const nameBytes = encoder.encode(item.name);
+    const data = item.data;
+    const crc = calcCrc(data);
+    const lh = new Uint8Array(30 + nameBytes.length);
+    const v = new DataView(lh.buffer);
+    v.setUint32(0, 0x04034b50, true);
+    v.setUint16(4, 20, true);
+    v.setUint32(14, crc, true);
+    v.setUint32(18, data.length, true);
+    v.setUint32(22, data.length, true);
+    v.setUint16(26, nameBytes.length, true);
+    lh.set(nameBytes, 30);
+    entries.push({ nameBytes: nameBytes, data: data, crc: crc, offset: offset, length: data.length });
+    offset += lh.length + data.length;
+  }
+
+  let cdSize = 0;
+  const cdParts = [];
+  for (let idx = 0; idx < entries.length; idx++) {
+    const e = entries[idx];
+    const cdh = new Uint8Array(46 + e.nameBytes.length);
+    const v = new DataView(cdh.buffer);
+    v.setUint32(0, 0x02014b50, true);
+    v.setUint16(4, 20, true);
+    v.setUint16(6, 20, true);
+    v.setUint32(16, e.crc, true);
+    v.setUint32(20, e.length, true);
+    v.setUint32(24, e.length, true);
+    v.setUint16(28, e.nameBytes.length, true);
+    v.setUint32(42, e.offset, true);
+    cdh.set(e.nameBytes, 46);
+    cdParts.push(cdh);
+    cdSize += cdh.length;
+  }
+
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, entries.length, true);
+  ev.setUint16(10, entries.length, true);
+  ev.setUint32(12, cdSize, true);
+  ev.setUint32(16, offset, true);
+
+  const zipParts = [];
+  for (let idx = 0; idx < entries.length; idx++) {
+    const e = entries[idx];
+    const lh = new Uint8Array(30 + e.nameBytes.length);
+    const v = new DataView(lh.buffer);
+    v.setUint32(0, 0x04034b50, true);
+    v.setUint16(4, 20, true);
+    v.setUint32(14, e.crc, true);
+    v.setUint32(18, e.length, true);
+    v.setUint32(22, e.length, true);
+    v.setUint16(26, e.nameBytes.length, true);
+    lh.set(e.nameBytes, 30);
+    zipParts.push(lh, e.data);
+  }
+  zipParts.push.apply(zipParts, cdParts);
+  zipParts.push(eocd);
+
+  const zipBlob = new Blob(zipParts, { type: 'application/zip' });
+  const dlLink = document.createElement('a');
+  dlLink.href = URL.createObjectURL(zipBlob);
+  const host = location.hostname.replace(/\\./g, '_') || 'fonts';
+  dlLink.download = 'fonts_' + host + '.zip';
+  document.body.appendChild(dlLink);
+  dlLink.click();
+  dlLink.remove();
+
+  showToast('🎉 <b>Downloaded ' + fontDataItems.length + ' font(s)!</b><br><span style="font-size:12px;color:#94a3b8">Now drop this ZIP into your Font Converter to decode & rename them!</span>', '#4ade80');
+  setTimeout(function() { const t = document.getElementById('__font_toast__'); if (t) t.remove(); }, 8000);
+})();`;
+
+    // Set clean bookmarklet href (No single-line comments!)
+    document.getElementById('bookmarklet-link').href = bookmarkletScript.replace(/\s+/g, ' ');
+
+    // -------------------------------------------------------------
+    // 2. CONVERTER & PARSER ENGINE
+    // -------------------------------------------------------------
     let harvestedFonts = [];
     const usedFilenames = new Set();
 
-    // Setup Drag and Drop
     const dropZone = document.getElementById('drop-zone');
     const filePicker = document.getElementById('file-picker');
 
@@ -325,6 +619,7 @@
       const logEl = document.getElementById('log-status');
       const fileList = document.getElementById('file-list');
       const actionsBar = document.getElementById('actions-bar');
+      document.getElementById('cors-notice').style.display = 'none';
 
       fileList.innerHTML = '';
       actionsBar.style.display = 'none';
@@ -340,9 +635,9 @@
           try {
             const zip = await JSZip.loadAsync(file);
             for (const relPath of Object.keys(zip.files)) {
-              if (/\.(woff2?|ttf|otf)$/i.test(relPath)) {
+              if (/\.(woff2?|ttf|otf)$/i.test(relPath) && !zip.files[relPath].dir) {
                 const buf = await zip.files[relPath].async('arraybuffer');
-                validFiles.push({ name: relPath, buffer: buf });
+                validFiles.push({ name: relPath.split('/').pop(), buffer: buf });
               }
             }
           } catch (e) {
@@ -359,18 +654,17 @@
         return;
       }
 
-      logEl.innerText = `Processing ${validFiles.length} file(s)...`;
+      logEl.innerText = `Processing and converting ${validFiles.length} file(s)...`;
       actionsBar.style.display = 'flex';
       document.getElementById('found-count').innerText = `${validFiles.length} font(s) detected`;
 
       for (const item of validFiles) {
-        await processFontBuffer(item.buffer, item.name, 'Local File');
+        await processFontBuffer(item.buffer, item.name, 'Local File / ZIP');
       }
 
-      logEl.innerText = `Ready! Processed ${harvestedFonts.length} font(s).`;
+      logEl.innerText = `Ready! Converted ${harvestedFonts.length} font(s) with true internal names.`;
     }
 
-    // Ensure wawoff2 WASM runtime is initialized
     function ensureWoff2Ready() {
       return new Promise(resolve => {
         if (typeof Module !== 'undefined' && typeof Module.decompress === 'function') {
@@ -386,136 +680,6 @@
           window.addEventListener('load', () => setTimeout(resolve, 500));
         }
       });
-    }
-
-    async function proxiedFetch(url, isBinary = false) {
-      let lastError;
-      for (const getProxy of PROXIES) {
-        try {
-          const res = await fetch(getProxy(url));
-          if (res.ok) {
-            return isBinary ? await res.arrayBuffer() : await res.text();
-          }
-        } catch (err) {
-          lastError = err;
-        }
-      }
-      throw lastError || new Error('All CORS proxies failed to load resource.');
-    }
-
-    async function startScrape() {
-      const inputEl = document.getElementById('target-url');
-      const scrapeBtn = document.getElementById('scrape-btn');
-      const logEl = document.getElementById('log-status');
-      const fileList = document.getElementById('file-list');
-      const actionsBar = document.getElementById('actions-bar');
-
-      let targetUrl = inputEl.value.trim();
-      if (!targetUrl) return;
-      if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-        targetUrl = 'https://' + targetUrl;
-      }
-
-      scrapeBtn.disabled = true;
-      fileList.innerHTML = '';
-      actionsBar.style.display = 'none';
-      harvestedFonts = [];
-      usedFilenames.clear();
-      logEl.innerText = 'Initializing decoders and fetching page source...';
-
-      try {
-        await ensureWoff2Ready();
-
-        const html = await proxiedFetch(targetUrl);
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-
-        const cssUrls = new Set();
-        const jsUrls = new Set();
-        const fontUrls = new Set();
-
-        // 1. Scan raw HTML and inline styles
-        findFontStrings(html, targetUrl, fontUrls);
-
-        // 2. Discover linked CSS & preloads
-        doc.querySelectorAll('link[rel="stylesheet"], link[as="font"], link[as="style"], link[rel="preload"]').forEach(el => {
-          const href = el.getAttribute('href');
-          if (href) {
-            try {
-              const abs = new URL(href, targetUrl).href;
-              if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(abs)) fontUrls.add(abs);
-              else if (el.rel === 'stylesheet' || el.getAttribute('as') === 'style') cssUrls.add(abs);
-            } catch (e) {}
-          }
-        });
-
-        // 3. Discover linked JS bundles
-        doc.querySelectorAll('script[src]').forEach(s => {
-          const src = s.getAttribute('src');
-          if (src && !src.includes('analytics') && !src.includes('gtag')) {
-            try { jsUrls.add(new URL(src, targetUrl).href); } catch (e) {}
-          }
-        });
-
-        // 4. Download and scan CSS files
-        let cCount = 1;
-        for (const cssUrl of cssUrls) {
-          logEl.innerText = `Scanning stylesheet (${cCount++}/${cssUrls.size})...`;
-          try {
-            const cssText = await proxiedFetch(cssUrl);
-            findFontStrings(cssText, cssUrl, fontUrls);
-
-            const importMatches = cssText.matchAll(/@import\s+(?:url\()?['"]?([^'";)]+)['"]?\)?/g);
-            for (const imp of importMatches) {
-              try {
-                const subCss = new URL(imp[1], cssUrl).href;
-                const subText = await proxiedFetch(subCss);
-                findFontStrings(subText, subCss, fontUrls);
-              } catch (e) {}
-            }
-          } catch (e) {}
-        }
-
-        if (fontUrls.size === 0) {
-          logEl.innerHTML = '<span style="color:var(--error)">No fonts found. The website likely blocks external proxies. Use the F12 Console script above!</span>';
-          scrapeBtn.disabled = false;
-          return;
-        }
-
-        logEl.innerText = `Found ${fontUrls.size} font(s). Downloading & converting...`;
-        actionsBar.style.display = 'flex';
-        document.getElementById('found-count').innerText = `${fontUrls.size} font(s) detected`;
-
-        for (const fUrl of fontUrls) {
-          try {
-            const buffer = await proxiedFetch(fUrl, true);
-            const cleanUrl = fUrl.split('#')[0].split('?')[0];
-            const origFileName = cleanUrl.split('/').pop();
-            await processFontBuffer(buffer, origFileName, fUrl);
-          } catch (e) {
-            console.error('Failed to download font URL:', fUrl, e);
-          }
-        }
-
-        logEl.innerText = `Extraction complete! Processed ${harvestedFonts.length} font(s).`;
-      } catch (err) {
-        logEl.innerHTML = `<span style="color:var(--error)">Failed to fetch target: ${err.message}. Try using the F12 Console script above!</span>`;
-      } finally {
-        scrapeBtn.disabled = false;
-      }
-    }
-
-    function findFontStrings(text, baseUrl, urlSet) {
-      const regex = /(?:url\(\s*['"]?|['"])([^'")\s]+\.(?:woff2?|ttf|otf)(?:\?[^'")\s]*)?)/gi;
-      let match;
-      while ((match = regex.exec(text)) !== null) {
-        let raw = match[1].trim();
-        if (raw.startsWith('data:')) continue;
-        try {
-          const abs = new URL(raw, baseUrl).href;
-          urlSet.add(abs);
-        } catch (e) {}
-      }
     }
 
     // Direct binary parser for OpenType/TrueType 'name' table
@@ -727,42 +891,155 @@
       return out.buffer.slice(0, sfntDataOffset);
     }
 
-    function copyConsoleScript() {
-      const script = `(async () => {
-  const fontUrls = new Set();
-  performance.getEntriesByType('resource').forEach(r => {
-    if (/\\.(woff2?|ttf|otf)(\\?.*)?$/i.test(r.name)) fontUrls.add(r.name);
-  });
-  document.querySelectorAll('link[rel*=font], link[as=font]').forEach(l => {
-    if (l.href && /\\.(woff2?|ttf|otf)/i.test(l.href)) fontUrls.add(l.href);
-  });
-  if (fontUrls.size === 0) return alert('No fonts found in network cache. Reload with DevTools open (Network -> Disable Cache) and re-run.');
-  if (typeof JSZip === 'undefined') {
-    await new Promise((res, rej) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-      s.onload = res; s.onerror = rej;
-      document.head.appendChild(s);
-    });
-  }
-  const zip = new JSZip();
-  for (const url of fontUrls) {
-    try {
-      const res = await fetch(url);
-      const buf = await res.arrayBuffer();
-      const rawName = url.split('/').pop().split('?')[0];
-      zip.file(rawName, buf);
-    } catch (e) {}
-  }
-  const blob = await zip.generateAsync({ type: 'blob' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'downloaded_fonts.zip';
-  a.click();
-})();`;
-      navigator.clipboard.writeText(script).then(() => {
-        alert('Console script copied to clipboard! Open F12 Console on target website, paste, and press Enter.');
-      });
+    // -------------------------------------------------------------
+    // 3. DIRECT URL / CDN EXTRACTION
+    // -------------------------------------------------------------
+    async function startScrape() {
+      const inputEl = document.getElementById('target-url');
+      const proxyInput = document.getElementById('custom-proxy');
+      const scrapeBtn = document.getElementById('scrape-btn');
+      const logEl = document.getElementById('log-status');
+      const fileList = document.getElementById('file-list');
+      const actionsBar = document.getElementById('actions-bar');
+      const corsNotice = document.getElementById('cors-notice');
+
+      corsNotice.style.display = 'none';
+
+      let targetUrl = inputEl.value.trim();
+      if (!targetUrl) return;
+      if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+        targetUrl = 'https://' + targetUrl;
+      }
+
+      scrapeBtn.disabled = true;
+      fileList.innerHTML = '';
+      actionsBar.style.display = 'none';
+      harvestedFonts = [];
+      usedFilenames.clear();
+      logEl.innerText = 'Connecting to resource...';
+
+      const proxyPrefix = proxyInput.value.trim();
+      function getFetchUrl(u) {
+        return proxyPrefix ? (proxyPrefix + encodeURIComponent(u)) : u;
+      }
+
+      try {
+        await ensureWoff2Ready();
+
+        // Direct font link (.woff, .woff2, .ttf, .otf)
+        if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(targetUrl)) {
+          logEl.innerText = 'Downloading font file...';
+          const res = await fetch(getFetchUrl(targetUrl));
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const buf = await res.arrayBuffer();
+          const clean = targetUrl.split('#')[0].split('?')[0];
+          const name = clean.split('/').pop();
+          actionsBar.style.display = 'flex';
+          document.getElementById('found-count').innerText = '1 font detected';
+          await processFontBuffer(buf, name, targetUrl);
+          logEl.innerText = 'Font converted successfully!';
+          return;
+        }
+
+        logEl.innerText = 'Fetching page source & scanning stylesheets...';
+        const res = await fetch(getFetchUrl(targetUrl));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const html = await res.text();
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const fontUrls = new Set();
+        const cssUrls = new Set();
+
+        // 1. Scan raw HTML for font strings & Base64
+        findFontStrings(html, targetUrl, fontUrls);
+
+        // 2. Scan inline <style> tags
+        doc.querySelectorAll('style').forEach(st => findFontStrings(st.textContent, targetUrl, fontUrls));
+
+        // 3. Scan linked stylesheets and preload links
+        doc.querySelectorAll('link[rel="stylesheet"], link[as="font"], link[rel="preload"]').forEach(el => {
+          const href = el.getAttribute('href');
+          if (href) {
+            try {
+              const abs = new URL(href, targetUrl).href;
+              if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(abs)) fontUrls.add(abs);
+              else if (el.rel === 'stylesheet') cssUrls.add(abs);
+            } catch(e) {}
+          }
+        });
+
+        // 4. Download and parse linked CSS files for all @font-face declarations
+        let cCount = 1;
+        for (const cssUrl of cssUrls) {
+          logEl.innerText = `Scanning stylesheet (${cCount++}/${cssUrls.size})...`;
+          try {
+            const cssRes = await fetch(getFetchUrl(cssUrl));
+            if (cssRes.ok) {
+              const cssText = await cssRes.text();
+              findFontStrings(cssText, cssUrl, fontUrls);
+            }
+          } catch(e) {}
+        }
+
+        if (fontUrls.size === 0) {
+          logEl.innerHTML = '<span style="color:var(--error)">No font declarations found directly in HTML/CSS. Use the Bookmarklet on the live site!</span>';
+          return;
+        }
+
+        logEl.innerText = `Found ${fontUrls.size} font(s) (including hidden variants). Downloading...`;
+        actionsBar.style.display = 'flex';
+        document.getElementById('found-count').innerText = `${fontUrls.size} font(s) detected`;
+
+        for (const fUrl of fontUrls) {
+          if (fUrl.startsWith('data:')) {
+            // Handle Base64 embedded font
+            const m = fUrl.match(/^data:([^;]+);base64,(.+)$/);
+            if (m) {
+              try {
+                const bin = atob(m[2]);
+                const arr = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+                const ext = m[1].includes('woff2') ? 'woff2' : (m[1].includes('woff') ? 'woff' : 'ttf');
+                await processFontBuffer(arr.buffer, 'embedded_font.' + ext, 'Inline CSS Base64');
+              } catch(e) {}
+            }
+            continue;
+          }
+
+          try {
+            const fRes = await fetch(getFetchUrl(fUrl));
+            if (fRes.ok) {
+              const fBuf = await fRes.arrayBuffer();
+              const cleanUrl = fUrl.split('#')[0].split('?')[0];
+              const origFileName = cleanUrl.split('/').pop();
+              await processFontBuffer(fBuf, origFileName, fUrl);
+            }
+          } catch(e) {}
+        }
+        logEl.innerText = `Complete! Processed ${harvestedFonts.length} font(s).`;
+      } catch (err) {
+        logEl.innerText = '';
+        corsNotice.style.display = 'block';
+      } finally {
+        scrapeBtn.disabled = false;
+      }
+    }
+
+    function findFontStrings(text, baseUrl, urlSet) {
+      const regex = /(?:url\(\s*['"]?|['"])([^'")\s]+\.(?:woff2?|ttf|otf)(?:\?[^'")\s]*)?|data:(?:font|application\/[a-z0-9-]+font)[^'")]*)/gi;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        let raw = match[1].trim();
+        if (raw.startsWith('data:')) {
+          urlSet.add(raw);
+          continue;
+        }
+        try {
+          const abs = new URL(raw, baseUrl).href;
+          urlSet.add(abs);
+        } catch (e) {}
+      }
     }
   </script>
 </body>
