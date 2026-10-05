@@ -339,11 +339,20 @@
     .search.has-value .clear-search { display: block; }
     .result-meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-    .grid {
+    .family-group { margin-bottom: 36px; display: flex; flex-direction: column; gap: 16px; animation: rise 0.45s var(--spring); }
+    .family-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 2px solid var(--ink); }
+    .family-head h3 { font: 900 20px/1 var(--display); text-transform: uppercase; letter-spacing: -0.2px; margin: 0; }
+    .family-group.error-group { margin-top: 48px; border-top: 2px dashed var(--red); padding-top: 24px; }
+    .family-group.error-group .family-head { border-bottom-color: var(--red); color: var(--red); border-top: 0; padding-top: 0; }
+    .family-group.is-hidden { display: none; }
+
+    .family-grid {
       display: grid; gap: 22px;
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
     }
 
+    #grid { display: flex; flex-direction: column; }
+    
     .empty {
       grid-column: 1 / -1;
       border: 2px dashed var(--ink); border-radius: var(--radius);
@@ -1075,7 +1084,7 @@
     const drawer = el.querySelector('.drawer');
     toggle.addEventListener('click', () => toggleDrawer(toggle, drawer));
 
-    insertCard(el);
+    insertCard(el, f.family || 'Other Fonts');
   }
 
   function renderErrorCard(origName, message, source) {
@@ -1090,13 +1099,63 @@
         </div>
       </div>
       <p class="err-msg">${esc(message)}<br><span style="color:var(--muted);font-size:12px">${esc(origName)}${source ? ' &middot; ' + esc(source) : ''}</span></p>`;
-    insertCard(el);
+    insertCard(el, '__error__');
   }
 
-  function insertCard(el) {
+  function insertCard(el, family) {
     emptyEl.style.display = 'none';
     if (state.query && !el.dataset.search.includes(state.query)) el.classList.add('is-hidden');
-    grid.appendChild(el);
+    
+    const isError = family === '__error__';
+    const groupId = isError ? 'grp-error' : 'grp-' + family.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    let groupEl = document.getElementById(groupId);
+    
+    if (!groupEl) {
+      groupEl = document.createElement('div');
+      groupEl.id = groupId;
+      groupEl.className = 'family-group' + (isError ? ' error-group' : '');
+      const title = isError ? 'Could not convert' : esc(family);
+      
+      let dlBtn = '';
+      if (!isError) {
+         dlBtn = `<button class="btn btn-sm btn-yellow js-dl-family" data-family="${esc(family)}" data-tip="Download all ${esc(family)} fonts as a ZIP" data-tip-pos="left"><svg width="14" height="14"><use href="#i-download"/></svg> Download Family ZIP</button>`;
+      }
+      
+      groupEl.innerHTML = `
+        <div class="family-head">
+           <h3>${title}</h3>
+           ${dlBtn}
+        </div>
+        <div class="family-grid"></div>
+      `;
+      
+      if (!isError) {
+         groupEl.querySelector('.js-dl-family').addEventListener('click', async (e) => {
+            const fam = e.currentTarget.dataset.family;
+            const fonts = state.fonts.filter(f => (f.family || 'Other Fonts') === fam);
+            if (!fonts.length) return;
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            try {
+              const zip = new JSZip();
+              fonts.forEach(f => zip.file(f.fileName, f.buffer));
+              const blob = await zip.generateAsync({ type: 'blob' });
+              triggerDownload(blob, fam.replace(/[^a-z0-9]/gi, '_') + '_family.zip');
+            } catch(err) {}
+            btn.disabled = false;
+         });
+      }
+      
+      if (isError) {
+         grid.appendChild(groupEl);
+      } else {
+         const errGrp = document.getElementById('grp-error');
+         if (errGrp) grid.insertBefore(groupEl, errGrp);
+         else grid.appendChild(groupEl);
+      }
+    }
+    
+    groupEl.querySelector('.family-grid').appendChild(el);
     updateResultMeta();
     $('#clear-btn').disabled = false;
   }
@@ -1131,7 +1190,7 @@
     const visible = grid.querySelectorAll('.card:not(.is-hidden)');
     const meta = $('#result-meta');
     if (!cards.length) { meta.textContent = ''; return; }
-    meta.textContent = state.query ? `Showing ${visible.length} of ${cards.length}` : `${cards.length} item${cards.length === 1 ? '' : 's'}`;
+    meta.textContent = state.query ? \`Showing \${visible.length} of \${cards.length}\` : \`\${cards.length} item\${cards.length === 1 ? '' : 's'}\`;
 
     let none = $('#no-match');
     if (state.query && cards.length && !visible.length) {
@@ -1140,7 +1199,7 @@
         none.id = 'no-match'; none.className = 'empty dots-ink';
         grid.appendChild(none);
       }
-      none.innerHTML = `<h3>No matches</h3><p>No font names contain "${esc(state.query)}".</p>`;
+      none.innerHTML = \`<h3>No matches</h3><p>No font names contain "\${esc(state.query)}".</p>\`;
     } else if (none) none.remove();
   }
 
@@ -1151,9 +1210,16 @@
   searchInput.addEventListener('input', () => {
     state.query = searchInput.value.trim().toLowerCase();
     $('#search-field').classList.toggle('has-value', !!searchInput.value);
+    
     grid.querySelectorAll('.card').forEach(c => {
       c.classList.toggle('is-hidden', !!state.query && !c.dataset.search.includes(state.query));
     });
+    
+    grid.querySelectorAll('.family-group').forEach(grp => {
+      const allHidden = Array.from(grp.querySelectorAll('.card')).every(c => c.classList.contains('is-hidden'));
+      grp.classList.toggle('is-hidden', allHidden);
+    });
+    
     updateResultMeta();
   });
   $('#clear-search').addEventListener('click', () => {
@@ -1166,7 +1232,7 @@
   $('#clear-btn').addEventListener('click', () => {
     state.fonts.forEach(f => { try { if (f.face) document.fonts.delete(f.face); } catch (e) {} });
     state.fonts = []; state.used.clear();
-    grid.querySelectorAll('.card, #no-match').forEach(c => c.remove());
+    grid.querySelectorAll('.family-group, #no-match').forEach(c => c.remove());
     emptyEl.style.display = '';
     updateCounters(); updateResultMeta(); clearStatus();
     $('#clear-btn').disabled = true;
