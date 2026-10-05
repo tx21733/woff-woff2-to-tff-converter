@@ -3,292 +3,510 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Web Font Harvester & Converter</title>
+  <title>Web Font Harvester &amp; Converter</title>
+  <meta name="description" content="Find, decode, test and export the web fonts used on any website. Converts WOFF and WOFF2 into installable TTF and OTF files.">
   <style>
+    /* ==========================================================
+       TOKENS
+       ========================================================== */
     :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --border: #334155;
-      --accent: #38bdf8;
-      --accent-hover: #0284c7;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --success: #4ade80;
-      --error: #f87171;
-      --warning: #facc15;
+      --paper: #f4f1e8;
+      --paper-deep: #ebe6d6;
+      --white: #ffffff;
+      --ink: #111111;
+      --ink-soft: #3b3a36;
+      --muted: #6b675d;
+      --blue: #2f528f;
+      --blue-tint: #dfe6f1;
+      --red: #c93b3b;
+      --red-tint: #f6dfdc;
+      --yellow: #eec343;
+      --yellow-tint: #fbf0c9;
+
+      --line: 2px solid var(--ink);
+      --shadow: 4px 4px 0 var(--ink);
+      --shadow-sm: 3px 3px 0 var(--ink);
+      --shadow-lg: 6px 6px 0 var(--ink);
+
+      --spring: cubic-bezier(0.16, 1, 0.3, 1);
+      --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --display: "Helvetica Neue", Helvetica, "Arial Black", Arial, sans-serif;
+      --radius: 3px;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { -webkit-text-size-adjust: 100%; }
+
     body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      display: grid;
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--ink);
+      background-color: var(--paper);
+      /* faint newsprint grain using two offset dot layers */
+      background-image:
+        radial-gradient(rgba(17,17,17,0.045) 0.8px, transparent 1px),
+        radial-gradient(rgba(17,17,17,0.03) 0.8px, transparent 1px);
+      background-size: 7px 7px, 7px 7px;
+      background-position: 0 0, 3.5px 3.5px;
       min-height: 100vh;
-      place-items: center;
-      padding: 24px;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .container {
-      width: 100%;
-      max-width: 800px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 32px;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; background: none; border: 0; }
+    a { color: inherit; }
+    svg { display: block; flex-shrink: 0; }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip: rect(0 0 0 0); white-space: nowrap;
     }
 
-    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
-    p.subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px; }
+    :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 
-    /* Method Cards */
-    .method-card {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 18px;
-      margin-bottom: 20px;
+    /* ==========================================================
+       HALFTONE / BEN-DAY UTILITIES
+       ========================================================== */
+    .dots-blue   { background-image: radial-gradient(rgba(47,82,143,0.28) 1.1px, transparent 1.3px); background-size: 8px 8px; }
+    .dots-red    { background-image: radial-gradient(rgba(201,59,59,0.26) 1.1px, transparent 1.3px); background-size: 8px 8px; }
+    .dots-yellow { background-image: radial-gradient(rgba(190,140,20,0.32) 1.1px, transparent 1.3px); background-size: 8px 8px; }
+    .dots-ink    { background-image: radial-gradient(rgba(17,17,17,0.14) 1px, transparent 1.2px); background-size: 6px 6px; }
+
+    /* ==========================================================
+       LAYOUT
+       ========================================================== */
+    .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+    main.wrap { padding-top: 32px; padding-bottom: 96px; display: flex; flex-direction: column; gap: 32px; }
+
+    /* ==========================================================
+       TOP BAR (batch export)
+       ========================================================== */
+    .topbar {
+      position: sticky; top: 0; z-index: 40;
+      background: var(--white);
+      border-bottom: var(--line);
+    }
+    .topbar-inner {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      height: 64px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand-mark {
+      width: 36px; height: 36px; border: var(--line); background: var(--yellow);
+      display: grid; place-items: center; box-shadow: 2px 2px 0 var(--ink);
+      font: 900 15px/1 var(--display); letter-spacing: -0.5px;
+    }
+    .brand-name { font: 900 15px/1 var(--display); text-transform: uppercase; letter-spacing: 0.6px; }
+    .brand-name small { display: block; font: 500 11px/1.4 var(--sans); letter-spacing: 0.4px; text-transform: none; color: var(--muted); margin-top: 3px; }
+
+    .bar-actions { display: flex; align-items: center; gap: 10px; }
+    .counter {
+      display: flex; align-items: stretch; border: var(--line); background: var(--white);
+      font: 700 12px/1 var(--sans); text-transform: uppercase; letter-spacing: 0.8px;
+    }
+    .counter span { padding: 9px 10px; display: flex; align-items: center; }
+    .counter b {
+      background: var(--ink); color: var(--white); padding: 9px 11px; min-width: 40px;
+      font: 900 14px/1 var(--display); display: flex; align-items: center; justify-content: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .counter b.bump { animation: bump 0.5s var(--spring); }
+    @keyframes bump { 0% { transform: scale(1.35); } 100% { transform: scale(1); } }
+
+    /* ==========================================================
+       BUTTONS
+       ========================================================== */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: var(--line); border-radius: var(--radius);
+      background: var(--white); color: var(--ink);
+      padding: 10px 16px;
+      font: 700 13px/1 var(--sans); letter-spacing: 0.3px;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.35s var(--spring);
+      white-space: nowrap; text-decoration: none; user-select: none;
+    }
+    .btn:hover { transform: translate(-1px, -1px); }
+    .btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); transition-duration: 0.08s; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .btn-blue   { background: var(--blue); color: var(--white); }
+    .btn-red    { background: var(--red); color: var(--white); }
+    .btn-yellow { background: var(--yellow); }
+    .btn-ink    { background: var(--ink); color: var(--white); }
+    .btn-ghost  { box-shadow: none; background: transparent; }
+    .btn-ghost:active { transform: translate(1px, 1px); }
+    .btn-lg { padding: 14px 22px; font-size: 14px; }
+    .btn-sm { padding: 7px 11px; font-size: 12px; box-shadow: 2px 2px 0 var(--ink); }
+
+    /* ==========================================================
+       TOOLTIPS  (data-tip on any element)
+       ========================================================== */
+    [data-tip] { position: relative; }
+    [data-tip]::after {
+      content: attr(data-tip);
+      position: absolute; left: 50%; bottom: calc(100% + 10px);
+      width: max-content; max-width: 250px;
+      padding: 8px 11px;
+      background: var(--ink); color: var(--white);
+      font: 500 12px/1.4 var(--sans); letter-spacing: 0.1px; text-transform: none; text-align: left; white-space: normal;
+      border-radius: 2px;
+      box-shadow: 3px 3px 0 var(--yellow);
+      opacity: 0; pointer-events: none;
+      transform: translate(-50%, 6px);
+      transition: opacity 0.18s ease, transform 0.4s var(--spring);
+      z-index: 60;
+    }
+    [data-tip]:hover::after,
+    [data-tip]:focus-visible::after {
+      opacity: 1; transform: translate(-50%, 0);
+      transition-delay: 0.35s;
+    }
+    [data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 10px); transform: translate(-50%, -6px); }
+    [data-tip-pos="bottom"]:hover::after, [data-tip-pos="bottom"]:focus-visible::after { transform: translate(-50%, 0); }
+    [data-tip-pos="left"]::after { left: auto; right: 0; transform: translate(0, 6px); }
+    [data-tip-pos="left"]:hover::after, [data-tip-pos="left"]:focus-visible::after { transform: translate(0, 0); }
+    [data-tip-pos="right"]::after { left: 0; transform: translate(0, 6px); }
+    [data-tip-pos="right"]:hover::after, [data-tip-pos="right"]:focus-visible::after { transform: translate(0, 0); }
+    [data-tip-pos="bottom-left"]::after { bottom: auto; top: calc(100% + 10px); left: auto; right: 0; transform: translate(0, -6px); }
+    [data-tip-pos="bottom-left"]:hover::after, [data-tip-pos="bottom-left"]:focus-visible::after { transform: translate(0, 0); }
+
+    /* ==========================================================
+       PANELS
+       ========================================================== */
+    .panel {
+      background: var(--white);
+      border: var(--line);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
     }
 
-    .method-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-      font-weight: 600;
-      font-size: 0.95rem;
+    .caption {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--yellow); border: var(--line);
+      padding: 5px 10px;
+      font: 900 11px/1 var(--display); letter-spacing: 1.2px; text-transform: uppercase;
     }
+    .caption.blue { background: var(--blue); color: var(--white); }
+    .caption.red  { background: var(--red);  color: var(--white); }
+    .caption.white { background: var(--white); }
 
-    .badge {
-      font-size: 0.75rem;
-      padding: 3px 10px;
-      border-radius: 999px;
-      background: rgba(56, 189, 248, 0.15);
-      color: var(--accent);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      font-weight: 600;
+    .eyebrow { font: 700 11px/1 var(--sans); letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); }
+
+    /* ==========================================================
+       HERO / INTRO PANEL
+       ========================================================== */
+    .hero { display: grid; grid-template-columns: 1.15fr 1fr; overflow: hidden; }
+    .hero-copy { padding: 36px 36px 32px; display: flex; flex-direction: column; gap: 18px; border-right: var(--line); }
+    .hero-title {
+      font: 900 clamp(34px, 5vw, 54px)/0.95 var(--display);
+      text-transform: uppercase; letter-spacing: -1.2px;
     }
+    .hero-title em { font-style: normal; color: var(--blue); }
+    .hero-title .rule { display: inline-block; background: var(--red); color: var(--white); padding: 0 8px; margin-top: 4px; transform: rotate(-1.2deg); }
+    .hero-lede { font-size: 16px; color: var(--ink-soft); max-width: 46ch; }
 
-    .method-desc {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      line-height: 1.5;
-      margin-bottom: 14px;
+    .steps { display: grid; grid-template-rows: repeat(3, 1fr); }
+    .step {
+      display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 16px;
+      padding: 18px 24px;
+      border-bottom: var(--line);
+      position: relative;
     }
-
-    .bookmarklet-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: #38bdf8;
-      color: #0f172a;
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-weight: 700;
-      font-size: 0.95rem;
-      text-decoration: none;
-      cursor: grab;
-      border: 2px dashed #0284c7;
-      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
-      transition: transform 0.1s ease;
+    .step:last-child { border-bottom: 0; }
+    .step-num {
+      width: 52px; height: 52px; border: var(--line); background: var(--white);
+      display: grid; place-items: center;
+      font: 900 24px/1 var(--display);
+      box-shadow: 3px 3px 0 var(--ink);
     }
-    .bookmarklet-btn:active { cursor: grabbing; transform: scale(0.98); }
+    .step h3 { font: 900 15px/1.2 var(--display); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 3px; }
+    .step p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.45; }
+    .step.s1 { background-color: var(--blue-tint); }
+    .step.s2 { background-color: var(--yellow-tint); }
+    .step.s3 { background-color: var(--red-tint); }
 
-    /* Drag & Drop Area */
-    .drop-zone {
-      border: 2px dashed var(--border);
-      border-radius: 8px;
-      padding: 36px 20px;
-      text-align: center;
-      background: rgba(15, 23, 42, 0.4);
+    /* ==========================================================
+       INPUT PANEL
+       ========================================================== */
+    .section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+    .section-title { font: 900 24px/1 var(--display); text-transform: uppercase; letter-spacing: -0.3px; }
+
+    .input-panel { display: grid; grid-template-columns: 1fr 1fr; }
+    .input-col { padding: 26px 26px 24px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    .input-col + .input-col { border-left: var(--line); }
+    .col-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .col-head h3 { font: 900 17px/1.15 var(--display); text-transform: uppercase; letter-spacing: 0.2px; }
+    .col-desc { font-size: 13.5px; color: var(--ink-soft); }
+
+    .field {
+      display: flex; align-items: center; gap: 10px;
+      border: var(--line); border-radius: var(--radius);
+      background: var(--white);
+      padding: 0 12px;
+      transition: transform 0.35s var(--spring);
+    }
+    .field:focus-within { box-shadow: 3px 3px 0 var(--blue); }
+    .field input {
+      flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+      padding: 13px 0; font-size: 15px;
+    }
+    .field input::placeholder { color: #9a958a; }
+    .field svg { color: var(--muted); }
+
+    .url-row { display: flex; gap: 10px; }
+    .url-row > .tipwrap { flex: 1; min-width: 0; display: block; }
+
+    details.adv { font-size: 13px; }
+    details.adv summary {
+      list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      font-weight: 700; color: var(--ink-soft); user-select: none;
+    }
+    details.adv summary::-webkit-details-marker { display: none; }
+    details.adv summary svg { transition: transform 0.4s var(--spring); }
+    details.adv[open] summary svg { transform: rotate(90deg); }
+    details.adv .adv-body { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+    details.adv[open] .adv-body { animation: rise 0.45s var(--spring); }
+    details.adv .adv-body p { color: var(--muted); font-size: 12.5px; }
+    details.adv .field input { padding: 9px 0; font-size: 13px; }
+
+    .dropzone {
+      flex: 1; min-height: 168px;
+      border: 2px dashed var(--ink); border-radius: var(--radius);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      text-align: center; padding: 22px;
+      background-color: var(--paper);
       cursor: pointer;
-      margin-bottom: 24px;
-      transition: all 0.2s ease;
+      transition: transform 0.4s var(--spring);
     }
-    .drop-zone.dragover {
-      border-color: var(--accent);
-      background: rgba(56, 189, 248, 0.1);
+    .dropzone:hover { transform: translateY(-2px); }
+    .dropzone.is-over { transform: scale(1.015); border-style: solid; background-color: var(--yellow-tint); }
+    .dropzone .dz-icon {
+      width: 48px; height: 48px; border: var(--line); background: var(--white); display: grid; place-items: center;
+      box-shadow: 3px 3px 0 var(--ink);
+      transition: transform 0.45s var(--spring);
     }
-    .drop-zone h3 {
-      font-size: 1.1rem;
-      margin-bottom: 6px;
-      color: var(--text);
+    .dropzone.is-over .dz-icon { transform: translateY(-4px) rotate(-4deg); }
+    .dropzone strong { font: 900 15px/1.2 var(--display); text-transform: uppercase; letter-spacing: 0.2px; }
+    .dropzone span { font-size: 13px; color: var(--muted); }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .chip { font: 700 10.5px/1 var(--sans); letter-spacing: 0.8px; border: 1.5px solid var(--ink); padding: 4px 6px; background: var(--white); }
+
+    /* Grabber strip */
+    .grabber {
+      grid-column: 1 / -1;
+      border-top: var(--line);
+      display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 20px;
+      padding: 18px 26px;
+      background-color: var(--blue-tint);
     }
-    .drop-zone p {
-      font-size: 0.85rem;
-      color: var(--text-muted);
+    .grabber h4 { font: 900 14px/1.2 var(--display); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 2px; }
+    .grabber p { font-size: 13px; color: var(--ink-soft); }
+    .grabber .btn { cursor: grab; }
+    .grabber .btn:active { cursor: grabbing; }
+
+    /* ==========================================================
+       STATUS
+       ========================================================== */
+    .status {
+      display: none; align-items: flex-start; gap: 12px;
+      border: var(--line); background: var(--white); border-radius: var(--radius);
+      padding: 12px 16px; font-size: 14px;
+      border-left-width: 8px;
+      animation: rise 0.45s var(--spring);
+    }
+    .status.show { display: flex; }
+    .status.info    { border-left-color: var(--blue); }
+    .status.success { border-left-color: #3a7d44; }
+    .status.error   { border-left-color: var(--red); }
+    .status .spinner {
+      width: 16px; height: 16px; border: 2px solid var(--ink); border-right-color: transparent; border-radius: 50%;
+      animation: spin 0.7s linear infinite; margin-top: 2px; flex-shrink: 0;
+    }
+    .status .status-body { flex: 1; }
+    .status .status-body b { display: block; margin-bottom: 2px; }
+    .status ol { margin: 6px 0 0 18px; display: flex; flex-direction: column; gap: 4px; color: var(--ink-soft); font-size: 13.5px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ==========================================================
+       RESULTS
+       ========================================================== */
+    .results-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .search { width: 320px; max-width: 100%; }
+    .search input { padding: 10px 0; font-size: 14px; }
+    .search .clear-search { color: var(--muted); padding: 4px; display: none; }
+    .search.has-value .clear-search { display: block; }
+    .result-meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    .grid {
+      display: grid; gap: 22px;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
     }
 
-    .divider {
-      display: flex;
-      align-items: center;
-      text-align: center;
-      margin: 24px 0;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 1px;
+    .empty {
+      grid-column: 1 / -1;
+      border: 2px dashed var(--ink); border-radius: var(--radius);
+      padding: 44px 24px; text-align: center;
+      background-color: rgba(255,255,255,0.55);
     }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      border-bottom: 1px solid var(--border);
-    }
-    .divider:not(:empty)::before { margin-right: 1em; }
-    .divider:not(:empty)::after { margin-left: 1em; }
+    .empty h3 { font: 900 18px/1.2 var(--display); text-transform: uppercase; margin-bottom: 6px; }
+    .empty p { color: var(--muted); font-size: 14px; }
 
-    .input-group {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 12px;
+    /* ==========================================================
+       FONT CARD
+       ========================================================== */
+    .card {
+      background: var(--white); border: var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex; flex-direction: column;
+      animation: cardIn 0.6s var(--spring) both;
+      transition: transform 0.45s var(--spring);
+      min-width: 0;
+    }
+    .card:hover { transform: translate(-2px, -2px); }
+    .card.is-hidden { display: none; }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(16px) scale(0.98); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: none; }
     }
 
-    input[type="url"], input[type="text"] {
-      flex: 1;
-      background: rgba(15, 23, 42, 0.8);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 16px;
-      color: var(--text);
-      font-size: 0.95rem;
+    .card-head {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+      padding: 16px 18px 14px;
+      border-bottom: var(--line);
+    }
+    .card-title { min-width: 0; }
+    .card-kicker { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+    .card-no { font: 900 11px/1 var(--display); letter-spacing: 1px; }
+    .tag {
+      font: 700 10px/1 var(--sans); letter-spacing: 0.9px; text-transform: uppercase;
+      padding: 4px 6px; border: 1.5px solid var(--ink);
+    }
+    .tag.ttf { background: var(--blue-tint); }
+    .tag.otf { background: var(--yellow-tint); }
+    .card-name {
+      font: 900 21px/1.15 var(--display); letter-spacing: -0.2px;
+      overflow-wrap: anywhere;
+    }
+
+    .tester-wrap { position: relative; background-color: var(--paper); border-bottom: var(--line); }
+    .tester-label {
+      position: absolute; top: 10px; right: 10px; z-index: 2;
+      font: 700 10px/1 var(--sans); letter-spacing: 1px; text-transform: uppercase;
+      background: var(--white); border: 1.5px solid var(--ink); padding: 4px 6px; cursor: help;
+    }
+    .tester {
+      --fs: 40px;
+      font-size: var(--fs);
+      line-height: 1.15;
+      padding: 30px 18px 22px;
+      min-height: 130px; max-height: 280px; overflow: auto;
       outline: none;
+      overflow-wrap: anywhere;
+      color: var(--ink);
+      cursor: text;
     }
-    input:focus { border-color: var(--accent); }
+    .tester:focus { background: var(--white); }
+    .tester-fail {
+      display: none; padding: 0 18px 14px; font-size: 12.5px; color: var(--red); font-weight: 700;
+    }
+    .card.preview-failed .tester-fail { display: block; }
 
-    .scrape-btn {
-      background: var(--accent);
-      color: #0f172a;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
+    .card-controls {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 12px 18px;
     }
-    .scrape-btn:hover { background: var(--accent-hover); }
-    .scrape-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .size-ctl { display: flex; align-items: center; gap: 10px; font: 700 11px/1 var(--sans); letter-spacing: 0.8px; text-transform: uppercase; flex: 1; min-width: 180px; }
+    .size-ctl output { font: 700 12px/1 var(--sans); min-width: 40px; font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: none; }
 
-    .proxy-config {
-      margin-bottom: 18px;
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    input[type="range"] {
+      -webkit-appearance: none; appearance: none; flex: 1; height: 18px; background: transparent; cursor: pointer;
     }
-    .proxy-config input {
-      padding: 6px 10px;
-      font-size: 0.8rem;
+    input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: var(--ink); }
+    input[type="range"]::-moz-range-track { height: 2px; background: var(--ink); }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 14px; height: 14px; margin-top: -6px;
+      background: var(--yellow); border: 2px solid var(--ink); border-radius: 0;
+      transition: transform 0.3s var(--spring);
     }
+    input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; background: var(--yellow); border: 2px solid var(--ink); border-radius: 0; }
+    input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.25); }
 
-    .actions-bar {
-      display: none;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
+    .link-btn {
+      font: 700 12px/1 var(--sans); letter-spacing: 0.2px;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 4px; border-bottom: 2px solid transparent;
+      transition: transform 0.35s var(--spring);
     }
+    .link-btn:hover { border-bottom-color: var(--ink); }
+    .link-btn:active { transform: translateY(1px); }
+    .link-btn svg { transition: transform 0.45s var(--spring); }
+    .link-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
 
-    .zip-btn {
-      background: #10b981;
-      color: #0f172a;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
+    .drawer { border-top: var(--line); transform-origin: top center; background-color: var(--white); }
+    .drawer[hidden] { display: none; }
+    .drawer.opening { animation: drawerIn 0.5s var(--spring); }
+    .drawer.closing { animation: drawerOut 0.2s ease forwards; }
+    @keyframes drawerIn  { from { opacity: 0; transform: translateY(-6px) scaleY(0.94); } to { opacity: 1; transform: none; } }
+    @keyframes drawerOut { to { opacity: 0; transform: translateY(-4px) scaleY(0.97); } }
+
+    .details { display: grid; grid-template-columns: 1fr 1fr; }
+    .details > div { padding: 14px 18px; min-width: 0; }
+    .details > div + div { border-left: var(--line); }
+    .details h5 { margin-bottom: 10px; }
+    .details dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 12.5px; }
+    .details dt { color: var(--muted); font-weight: 500; }
+    .details dd { font-weight: 700; overflow-wrap: anywhere; }
+    .details .src { grid-column: 1 / -1; border-top: 1.5px dashed var(--ink); padding: 10px 18px 14px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+    .details .src b { color: var(--ink); }
+
+    /* Error card */
+    .card.is-error { box-shadow: 4px 4px 0 var(--red); }
+    .card.is-error .card-head { border-bottom: 0; }
+    .stamp {
+      display: inline-block; border: 2px solid var(--red); color: var(--red);
+      font: 900 11px/1 var(--display); letter-spacing: 1.2px; text-transform: uppercase;
+      padding: 5px 7px; transform: rotate(-2deg);
     }
-    .zip-btn:hover { background: #059669; }
+    .err-msg { padding: 0 18px 16px; font-size: 13px; color: var(--ink-soft); }
 
-    #log-status {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-bottom: 16px;
-      min-height: 20px;
+    /* ==========================================================
+       FOOTER
+       ========================================================== */
+    footer { border-top: var(--line); background: var(--white); }
+    footer .wrap { display: flex; justify-content: space-between; gap: 16px; padding-top: 18px; padding-bottom: 18px; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+
+    /* ==========================================================
+       RESPONSIVE
+       ========================================================== */
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; }
+      .hero-copy { border-right: 0; border-bottom: var(--line); }
+      .input-panel { grid-template-columns: 1fr; }
+      .input-col + .input-col { border-left: 0; border-top: var(--line); }
+      .grabber { grid-template-columns: 1fr; gap: 12px; }
     }
-
-    #file-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      max-height: 420px;
-      overflow-y: auto;
-    }
-
-    .file-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 12px 16px;
-      font-size: 0.875rem;
-      gap: 12px;
-    }
-
-    .file-meta {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      overflow: hidden;
-      max-width: 70%;
-    }
-
-    .file-name {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .orig-name {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    @media (max-width: 640px) {
+      .wrap { padding: 0 16px; }
+      .brand-name small, .counter span { display: none; }
+      .bar-actions .btn-label { display: none; }
+      .details { grid-template-columns: 1fr; }
+      .details > div + div { border-left: 0; border-top: var(--line); }
+      .url-row { flex-direction: column; }
+      .hero-copy { padding: 26px 22px; }
     }
 
-    .download-btn {
-      background: var(--accent);
-      color: #0f172a;
-      border: none;
-      padding: 6px 14px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      white-space: nowrap;
-    }
-    .download-btn:hover { background: var(--accent-hover); }
-
-    .cors-modal {
-      display: none;
-      background: rgba(30, 41, 59, 0.95);
-      border: 1px solid var(--warning);
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 20px;
-      font-size: 0.85rem;
-      line-height: 1.5;
-    }
-    .cors-modal h4 {
-      color: var(--warning);
-      margin-bottom: 6px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; transition-delay: 0s !important; }
     }
   </style>
 
-  <!-- Pako (WOFF v1) -->
+  <!-- Pako (WOFF v1 table inflation) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
   <!-- Google WOFF2 WASM Decoder -->
   <script src="https://unpkg.com/wawoff2@2.0.1/build/decompress_binding.js"></script>
@@ -297,750 +515,1046 @@
 </head>
 <body>
 
-  <div class="container">
-    <h1>Web Font Harvester & Converter</h1>
-    <p class="subtitle">Extracts, decompresses, and accurately renames web fonts to TTF/OTF.</p>
+  <!-- SVG icon sprite -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 17v3h16v-3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5l5 5M4 15v5h16v-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="miter"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m0 0l-6-6m6 6l-6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 4v6h6M5 10a8 8 0 112 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square"/></symbol>
+  </svg>
 
-    <!-- Method 1: The Fixed Bookmarklet (Bypasses CORS in Any Browser) -->
-    <div class="method-card">
-      <div class="method-header">
-        <span>⭐ 1-Click Bookmarklet (Bypasses CORS in Any Browser)</span>
-        <span class="badge">Captures Hidden & Lazy Fonts</span>
-      </div>
-      <p class="method-desc">
-        Drag this button to your browser's <b>Bookmarks bar</b>. When browsing any website whose fonts you want, click the bookmark! It runs directly on that site with <b>zero CORS restrictions</b>, wakes up all hidden/unloaded font weights in CSS, and downloads them in a single .ZIP!
-      </p>
-      <a class="bookmarklet-btn" id="bookmarklet-link" href="#" title="Drag me to your Bookmarks Bar!">
-        <span>📥</span> <b>Extract & Download Fonts</b>
+  <!-- ======================= TOP BAR ======================= -->
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="#" aria-label="Web Font Harvester home">
+        <span class="brand-mark" aria-hidden="true">Aa</span>
+        <span class="brand-name">Font Harvester<small>Find, decode &amp; export web fonts</small></span>
       </a>
-    </div>
 
-    <!-- Method 2: Drag & Drop Converter -->
-    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-picker').click()">
-      <input type="file" id="file-picker" style="display: none;" multiple accept=".woff,.woff2,.ttf,.otf,.zip">
-      <h3>📁 Drop font files or .ZIP here to Convert & Rename</h3>
-      <p>Supports .woff, .woff2, .ttf, .otf, or the ZIP downloaded from the bookmarklet above.</p>
-    </div>
-
-    <div class="divider">or direct url extraction</div>
-
-    <!-- CORS Bypass Notice -->
-    <div class="cors-modal" id="cors-notice">
-      <h4>⚠️ Direct Browser CORS Block Detected</h4>
-      <p id="cors-msg">
-        Because GitHub Pages is a static host, browsers enforce the <b>Same-Origin Policy</b> and block fetching another website's HTML directly unless you bypass CORS.
-      </p>
-      <div style="margin-top: 10px; padding: 10px; background: rgba(15, 23, 42, 0.6); border-radius: 6px;">
-        <b>Two 100% Reliable Solutions:</b>
-        <ol style="margin-left: 20px; margin-top: 6px; display: flex; flex-direction: column; gap: 4px;">
-          <li><b>Use the 1-Click Bookmarklet above:</b> Click it on the website itself. It runs in that site's origin, has zero CORS restrictions, and grabs both visible and hidden fonts!</li>
-          <li><b>Enable a CORS Extension:</b> Install a free browser extension like <i>"Allow CORS"</i> or <i>"CORS Unblock"</i> on Chrome/Firefox/Edge. Then direct URL scraping works instantly!</li>
-        </ol>
+      <div class="bar-actions">
+        <div class="counter" data-tip="How many fonts are ready to download right now" data-tip-pos="bottom">
+          <span>Fonts ready</span><b id="font-count">00</b>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="clear-btn" disabled
+                data-tip="Remove every font from the list and start fresh" data-tip-pos="bottom">
+          <svg width="15" height="15"><use href="#i-trash"/></svg><span class="btn-label">Clear</span>
+        </button>
+        <button class="btn btn-red" id="zip-btn" disabled
+                data-tip="Download every converted font in one .ZIP file, ready to install" data-tip-pos="bottom-left">
+          <svg width="16" height="16"><use href="#i-download"/></svg><span class="btn-label">Download All as ZIP</span>
+        </button>
       </div>
     </div>
+  </header>
 
-    <!-- URL Input & Optional Proxy Override -->
-    <div class="input-group">
-      <input type="url" id="target-url" placeholder="https://example.com or direct font URL (.woff2)">
-      <button class="scrape-btn" id="scrape-btn" onclick="startScrape()">Extract Fonts</button>
+  <main class="wrap">
+
+    <!-- ======================= INTRO ======================= -->
+    <section class="panel hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <span class="caption">Issue No. 01 &nbsp;/&nbsp; Type Tools</span>
+        <h1 class="hero-title" id="hero-title">
+          Every website<br>has a <em>typeface</em><br><span class="rule">worth keeping.</span>
+        </h1>
+        <p class="hero-lede">
+          Grab the fonts a website uses, turn them into normal font files your computer understands,
+          and try them out before you download. Everything runs right here in your browser.
+        </p>
+      </div>
+
+      <ol class="steps" aria-label="How it works">
+        <li class="step s1 dots-blue">
+          <span class="step-num">1</span>
+          <div>
+            <h3>Paste a link or drop files</h3>
+            <p>Enter a website address, or drag in font files you already have (.woff, .woff2 or a .zip).</p>
+          </div>
+        </li>
+        <li class="step s2 dots-yellow">
+          <span class="step-num">2</span>
+          <div>
+            <h3>We find &amp; decode them</h3>
+            <p>Hidden web fonts are unpacked and named after the real font inside, not a random code.</p>
+          </div>
+        </li>
+        <li class="step s3 dots-red">
+          <span class="step-num">3</span>
+          <div>
+            <h3>Test, then export</h3>
+            <p>Type your own words in each font, then save one file or all of them, ready to install.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ======================= INPUT ======================= -->
+    <section aria-labelledby="input-title">
+      <div class="section-head">
+        <h2 class="section-title" id="input-title">Get fonts</h2>
+        <span class="eyebrow">Choose any option</span>
+      </div>
+
+      <div class="panel input-panel">
+        <!-- Option A: URL -->
+        <div class="input-col">
+          <div class="col-head">
+            <h3>From a website</h3>
+            <span class="caption blue">Option A</span>
+          </div>
+          <p class="col-desc">Paste a page address or a direct link to a font file. We read the page and its stylesheets to find every font.</p>
+
+          <form class="url-row" id="url-form" novalidate>
+            <span class="tipwrap" data-tip="Paste the full address of the website whose fonts you want, or a direct link ending in .woff2 / .woff / .ttf" data-tip-pos="bottom">
+              <label class="field">
+                <svg width="18" height="18"><use href="#i-link"/></svg>
+                <span class="sr-only">Website address</span>
+                <input type="text" id="target-url" inputmode="url" autocomplete="url" spellcheck="false" placeholder="https://example.com">
+              </label>
+            </span>
+            <button type="submit" class="btn btn-blue btn-lg" id="scrape-btn"
+                    data-tip="Look through this website and convert every font we find" data-tip-pos="bottom-left">
+              Find fonts <svg width="16" height="16"><use href="#i-arrow"/></svg>
+            </button>
+          </form>
+
+          <details class="adv">
+            <summary data-tip="Only needed if a website keeps refusing. Lets you route the request through your own CORS proxy." data-tip-pos="right">
+              <svg width="13" height="13"><use href="#i-chevron-right"/></svg> Advanced: use a CORS proxy
+            </summary>
+            <div class="adv-body">
+              <span data-tip="The proxy address is placed in front of every link we fetch. Leave it empty to connect directly." data-tip-pos="right" style="display:block">
+                <label class="field">
+                  <span class="sr-only">CORS proxy prefix</span>
+                  <input type="text" id="custom-proxy" spellcheck="false" placeholder="https://your-proxy.workers.dev/?url=">
+                </label>
+              </span>
+              <p>Browsers block many sites from being read by other pages. A proxy you control gets around this. Saved on this device only.</p>
+            </div>
+          </details>
+        </div>
+
+        <!-- Option B: Files -->
+        <div class="input-col">
+          <div class="col-head">
+            <h3>From your computer</h3>
+            <span class="caption red">Option B</span>
+          </div>
+          <div class="dropzone dots-ink" id="drop-zone" role="button" tabindex="0"
+               aria-label="Drop font files here or press Enter to browse"
+               data-tip="Drag font files here, or click to choose them. You can also drop the .ZIP made by the Font Grabber bookmark.">
+            <span class="dz-icon"><svg width="22" height="22"><use href="#i-upload"/></svg></span>
+            <strong>Drop font files here</strong>
+            <span>or click to browse your computer</span>
+            <div class="chips" aria-hidden="true"><span class="chip">WOFF2</span><span class="chip">WOFF</span><span class="chip">TTF</span><span class="chip">OTF</span><span class="chip">ZIP</span></div>
+            <input type="file" id="file-picker" hidden multiple accept=".woff,.woff2,.ttf,.otf,.zip">
+          </div>
+        </div>
+
+        <!-- Option C: Grabber -->
+        <div class="grabber dots-blue">
+          <span class="caption white">Option C</span>
+          <div>
+            <h4>Website won't let us in? Use the Font Grabber bookmark.</h4>
+            <p>Drag the button to your bookmarks bar. Open any website, click the bookmark, and it downloads a .ZIP of every font on that page, including weights that aren't shown yet. Drop that ZIP above.</p>
+          </div>
+          <a class="btn btn-yellow" id="grabber-link" href="#" draggable="true"
+             data-tip="Drag me to your bookmarks bar. Clicking me here does nothing; click the bookmark while you're on another website." data-tip-pos="left">
+            <svg width="15" height="15"><use href="#i-bookmark"/></svg> Font Grabber
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= STATUS ======================= -->
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+
+    <!-- ======================= RESULTS ======================= -->
+    <section aria-labelledby="results-title">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title" id="results-title">Your fonts</h2>
+        </div>
+        <div class="results-tools">
+          <span class="result-meta" id="result-meta"></span>
+          <span data-tip="Type part of a font name to show only matching fonts" data-tip-pos="bottom-left" class="search-tip">
+            <label class="field search" id="search-field">
+              <svg width="16" height="16"><use href="#i-search"/></svg>
+              <span class="sr-only">Search fonts</span>
+              <input type="search" id="search" placeholder="Filter by name" autocomplete="off" spellcheck="false">
+              <button type="button" class="clear-search" id="clear-search" aria-label="Clear search">
+                <svg width="14" height="14"><use href="#i-x"/></svg>
+              </button>
+            </label>
+          </span>
+        </div>
+      </div>
+
+      <div class="grid" id="grid">
+        <div class="empty dots-ink" id="empty">
+          <h3>No fonts yet</h3>
+          <p>Paste a website link or drop some font files above. Converted fonts will show up here.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Runs entirely in your browser. Files never leave your computer.</span>
+      <span>Please respect font licenses before using downloaded fonts.</span>
     </div>
-
-    <div class="proxy-config">
-      <label for="custom-proxy">Optional CORS Proxy Prefix:</label>
-      <input type="text" id="custom-proxy" placeholder="e.g. https://your-worker.workers.dev/?url=">
-    </div>
-
-    <div id="log-status"></div>
-
-    <div class="actions-bar" id="actions-bar">
-      <span id="found-count" style="font-size: 0.9rem; font-weight: 600;"></span>
-      <button class="zip-btn" onclick="downloadAllAsZip()">Download All Converted as .ZIP</button>
-    </div>
-
-    <div id="file-list"></div>
-  </div>
+  </footer>
 
   <script>
-    // -------------------------------------------------------------
-    // 1. SELF-CONTAINED ZERO-DEPENDENCY BOOKMARKLET
-    // -------------------------------------------------------------
-    const bookmarkletScript = `javascript:(async function(){
-  function showToast(text, color) {
-    let t = document.getElementById('__font_toast__');
-    if (!t) {
-      t = document.createElement('div');
-      t.id = '__font_toast__';
-      t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:2147483647;background:#0f172a;color:#f8fafc;padding:16px 20px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.8);font-family:system-ui,-apple-system,sans-serif;font-size:14px;border:2px solid ' + (color || '#38bdf8') + ';max-width:380px;line-height:1.4;';
-      document.body.appendChild(t);
+  'use strict';
+
+  /* ============================================================
+     STATE
+     ============================================================ */
+  const state = {
+    fonts: [],            // { id, name, family, style, fileName, outExt, origName, origFormat, origSize, buffer, source, face }
+    used: new Set(),      // lowercase filenames already used (ZIP collision guard)
+    query: '',
+    seq: 0
+  };
+  const SAMPLE = 'The quick brown fox jumps over the lazy dog';
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const grid = $('#grid');
+  const emptyEl = $('#empty');
+  const statusEl = $('#status');
+
+  /* ============================================================
+     HELPERS
+     ============================================================ */
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function fmtBytes(n) {
+    if (!n && n !== 0) return '-';
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(2) + ' MB';
+  }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function baseName(name) { return name.replace(/\.[^/.]+$/, ''); }
+
+  function setStatus(type, html, busy) {
+    statusEl.className = 'status show ' + type;
+    statusEl.innerHTML = (busy ? '<span class="spinner" aria-hidden="true"></span>' : '') +
+      '<div class="status-body">' + html + '</div>';
+  }
+  function clearStatus() { statusEl.className = 'status'; statusEl.innerHTML = ''; }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  /* ============================================================
+     WOFF2 WASM READINESS
+     ============================================================ */
+  function ensureWoff2Ready() {
+    return new Promise(resolve => {
+      if (typeof Module !== 'undefined' && typeof Module.decompress === 'function') return resolve();
+      const timeout = setTimeout(resolve, 8000);
+      const done = () => { clearTimeout(timeout); resolve(); };
+      if (typeof Module !== 'undefined') {
+        const prev = Module.onRuntimeInitialized;
+        Module.onRuntimeInitialized = () => { if (prev) prev(); done(); };
+      } else if (document.readyState === 'complete') {
+        setTimeout(done, 300);
+      } else {
+        window.addEventListener('load', () => setTimeout(done, 300));
+      }
+    });
+  }
+
+  /* ============================================================
+     FORMAT DETECTION (magic bytes, not file extension)
+     ============================================================ */
+  function sniffFontFormat(buffer) {
+    if (!buffer || buffer.byteLength < 4) return 'empty';
+    const b = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 64));
+    const sig = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
+    if (sig === 0x774F4632) return 'woff2';                        // 'wOF2'
+    if (sig === 0x774F4646) return 'woff';                         // 'wOFF'
+    if (sig === 0x00010000 || sig === 0x74727565 || sig === 0x74797031) return 'ttf'; // TrueType / 'true' / 'typ1'
+    if (sig === 0x4F54544F) return 'otf';                          // 'OTTO'
+    if (sig === 0x74746366) return 'collection';                   // 'ttcf'
+    const head = String.fromCharCode.apply(null, b).trim().toLowerCase();
+    if (head.startsWith('<') || head.includes('<html') || head.includes('<!doctype')) return 'html';
+    return 'unknown';
+  }
+  const FORMAT_LABEL = { woff2: 'WOFF2', woff: 'WOFF', ttf: 'TTF', otf: 'OTF' };
+
+  /* ============================================================
+     WOFF 1.0 -> SFNT
+     ============================================================ */
+  function convertWoffToTtf(arrayBuffer) {
+    const view = new DataView(arrayBuffer);
+    if (view.getUint32(0, false) !== 0x774F4646) throw new Error('Invalid WOFF signature.');
+    const flavor = view.getUint32(4, false);
+    const numTables = view.getUint16(12, false);
+    const entrySelector = Math.floor(Math.log2(numTables));
+    const searchRange = Math.pow(2, entrySelector) * 16;
+    const rangeShift = (numTables * 16) - searchRange;
+
+    // Pass 1: read directory, compute exact output size
+    const tables = [];
+    let size = 12 + 16 * numTables;
+    for (let i = 0; i < numTables; i++) {
+      const d = 44 + i * 20;
+      const t = {
+        tag: view.getUint32(d, false),
+        offset: view.getUint32(d + 4, false),
+        compLength: view.getUint32(d + 8, false),
+        origLength: view.getUint32(d + 12, false),
+        checksum: view.getUint32(d + 16, false)
+      };
+      size = (size + 3) & ~3;
+      t.outOffset = size;
+      size += t.origLength;
+      tables.push(t);
     }
-    t.style.borderColor = color || '#38bdf8';
-    t.innerHTML = text;
+    size = (size + 3) & ~3;
+
+    const out = new Uint8Array(size);
+    const outView = new DataView(out.buffer);
+    outView.setUint32(0, flavor, false);
+    outView.setUint16(4, numTables, false);
+    outView.setUint16(6, searchRange, false);
+    outView.setUint16(8, entrySelector, false);
+    outView.setUint16(10, rangeShift, false);
+
+    // Pass 2: inflate tables
+    tables.forEach((t, i) => {
+      const raw = new Uint8Array(arrayBuffer, t.offset, t.compLength);
+      let data = raw;
+      if (t.compLength < t.origLength) {
+        try { data = pako.inflate(raw); } catch (e) { data = pako.inflateRaw(raw); }
+      }
+      const dir = 12 + i * 16;
+      outView.setUint32(dir, t.tag, false);
+      outView.setUint32(dir + 4, t.checksum, false);
+      outView.setUint32(dir + 8, t.outOffset, false);
+      outView.setUint32(dir + 12, t.origLength, false);
+      out.set(data.subarray(0, t.origLength), t.outOffset);
+    });
+    return out.buffer;
   }
 
-  showToast('🔍 Waking up hidden fonts & scanning stylesheets...', '#38bdf8');
-
-  /* 1. Wake up and force-load all declared fonts in document.fonts */
-  if (document.fonts) {
+  /* ============================================================
+     OPENTYPE 'name' TABLE READER
+     ============================================================ */
+  function readFontNames(buffer) {
+    const res = { display: null, family: null, style: null, postscript: null, version: null };
     try {
-      const loaders = [];
-      document.fonts.forEach(function(f) { loaders.push(f.load().catch(function(){})); });
-      await Promise.all(loaders);
-    } catch(e) {}
+      const view = new DataView(buffer);
+      const numTables = view.getUint16(4, false);
+      let off = 0;
+      for (let i = 0; i < numTables; i++) {
+        if (view.getUint32(12 + i * 16, false) === 0x6E616D65) { off = view.getUint32(12 + i * 16 + 8, false); break; }
+      }
+      if (!off) return res;
+
+      const count = view.getUint16(off + 2, false);
+      const strBase = off + view.getUint16(off + 4, false);
+      const rec = {};
+      for (let i = 0; i < count; i++) {
+        const r = off + 6 + i * 12;
+        const platformId = view.getUint16(r, false);
+        const languageId = view.getUint16(r + 4, false);
+        const nameId = view.getUint16(r + 6, false);
+        const length = view.getUint16(r + 8, false);
+        const start = strBase + view.getUint16(r + 10, false);
+        if (start + length > buffer.byteLength) continue;
+
+        let str = '';
+        if (platformId === 0 || platformId === 3) {
+          for (let b = 0; b + 1 < length; b += 2) str += String.fromCharCode(view.getUint16(start + b, false));
+        } else if (platformId === 1) {
+          for (let b = 0; b < length; b++) str += String.fromCharCode(view.getUint8(start + b));
+        }
+        str = str.replace(/\u0000/g, '').trim();
+        if (!str) continue;
+        // prefer English (Windows 0x409 / Mac 0) entries
+        const english = (platformId === 3 && languageId === 0x409) || (platformId === 1 && languageId === 0) || platformId === 0;
+        if (!rec[nameId] || (english && !rec[nameId].en)) rec[nameId] = { v: str, en: english };
+      }
+      const g = id => rec[id] ? rec[id].v : null;
+
+      res.family = g(16) || g(1);
+      res.style = g(17) || g(2);
+      res.postscript = g(6);
+      res.version = g(5);
+
+      if (g(16) && g(17)) res.display = g(16) + ' ' + g(17);
+      else if (g(4)) res.display = g(4);
+      else if (g(1) && g(2) && g(2).toLowerCase() !== 'regular') res.display = g(1) + ' ' + g(2);
+      else if (g(1)) res.display = g(1);
+      else if (g(6)) res.display = g(6).replace(/-/g, ' ');
+    } catch (e) { /* ignore */ }
+    return res;
   }
 
-  const fontUrls = new Set();
-  const fontDataItems = [];
+  /* ============================================================
+     CORE: decode one buffer into a font entry
+     ============================================================ */
+  async function processFontBuffer(buffer, origName, source) {
+    const fmt = sniffFontFormat(buffer);
+    try {
+      let out;
+      if (fmt === 'woff2') {
+        await ensureWoff2Ready();
+        if (typeof Module === 'undefined' || !Module.decompress) throw new Error('The WOFF2 decoder did not load. Check your connection and reload the page.');
+        const raw = Module.decompress(new Uint8Array(buffer));
+        if (!raw || raw === false) throw new Error('This WOFF2 file could not be decompressed.');
+        out = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
+      } else if (fmt === 'woff') {
+        out = convertWoffToTtf(buffer);
+      } else if (fmt === 'ttf' || fmt === 'otf') {
+        out = buffer.slice(0);
+      } else if (fmt === 'html') {
+        throw new Error('This file is a web page, not a font. The website probably blocked the download.');
+      } else if (fmt === 'collection') {
+        throw new Error('Font collections (.ttc) are not supported yet.');
+      } else {
+        throw new Error('This file does not look like a font.');
+      }
 
-  /* 2. Helper to add font URL or Base64 embedded font */
-  function addUrl(raw, base) {
-    if (!raw) return;
-    raw = raw.trim().replace(/^url\\(['"]?/, '').replace(/['"]?\\)$/, '');
-    if (raw.startsWith('data:font') || raw.startsWith('data:application/font') || raw.startsWith('data:application/x-font')) {
-      const match = raw.match(/^data:([^;]+);base64,(.+)$/);
-      if (match) {
+      const isOtf = new DataView(out).getUint32(0, false) === 0x4F54544F;
+      const outExt = isOtf ? 'otf' : 'ttf';
+      const names = readFontNames(out);
+      const display = (names.display || baseName(origName) || 'Untitled Font').trim();
+      const clean = display.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim() || 'font';
+
+      let fileName = clean + '.' + outExt, n = 2;
+      while (state.used.has(fileName.toLowerCase())) fileName = clean + ' (' + (n++) + ').' + outExt;
+      state.used.add(fileName.toLowerCase());
+
+      const id = ++state.seq;
+      const entry = {
+        id, name: display, family: names.family, style: names.style, version: names.version,
+        fileName, outExt, outSize: out.byteLength,
+        origName, origFormat: FORMAT_LABEL[fmt] || fmt.toUpperCase(), origSize: buffer.byteLength,
+        buffer: out, source, cssFamily: '__wfh_' + id
+      };
+      state.fonts.push(entry);
+      renderCard(entry);
+      loadPreview(entry);
+      updateCounters();
+      return true;
+    } catch (err) {
+      renderErrorCard(origName, err.message || String(err), source);
+      return false;
+    }
+  }
+
+  function loadPreview(entry) {
+    try {
+      const face = new FontFace(entry.cssFamily, entry.buffer.slice(0));
+      entry.face = face;
+      document.fonts.add(face);
+      face.load().catch(() => {
+        const card = document.querySelector('[data-id="' + entry.id + '"]');
+        if (card) card.classList.add('preview-failed');
+      });
+    } catch (e) {
+      const card = document.querySelector('[data-id="' + entry.id + '"]');
+      if (card) card.classList.add('preview-failed');
+    }
+  }
+
+  /* ============================================================
+     RENDERING
+     ============================================================ */
+  function renderCard(f) {
+    const outLabel = f.outExt === 'otf' ? 'OpenType Font (.OTF)' : 'TrueType Font (.TTF)';
+    const el = document.createElement('article');
+    el.className = 'card';
+    el.dataset.id = f.id;
+    el.dataset.search = (f.name + ' ' + f.origName + ' ' + (f.family || '')).toLowerCase();
+    const no = pad2(grid.querySelectorAll('.card').length + 1);
+
+    el.innerHTML = `
+      <div class="card-head">
+        <div class="card-title">
+          <div class="card-kicker">
+            <span class="card-no">No. ${no}</span>
+            <span class="tag ${f.outExt}">${f.outExt === 'otf' ? 'OpenType' : 'TrueType'}</span>
+          </div>
+          <h3 class="card-name">${esc(f.name)}</h3>
+        </div>
+        <button class="btn btn-blue btn-sm js-dl" data-tip="Save this font as a .${f.outExt.toUpperCase()} file you can double-click to install" data-tip-pos="left">
+          <svg width="14" height="14"><use href="#i-download"/></svg> .${f.outExt.toUpperCase()}
+        </button>
+      </div>
+
+      <div class="tester-wrap">
+        <span class="tester-label" data-tip="Click the sample text and type anything to see it in this font" data-tip-pos="left">Type tester</span>
+        <div class="tester js-tester" contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true"
+             aria-label="Sample text in ${esc(f.name)}" style="font-family:'${f.cssFamily}', 'Adobe Blank', serif">${esc(SAMPLE)}</div>
+        <p class="tester-fail">Your browser couldn't preview this font. The file may still install fine.</p>
+      </div>
+
+      <div class="card-controls">
+        <label class="size-ctl" data-tip="Drag to make the sample text bigger or smaller" data-tip-pos="right">
+          Size
+          <input type="range" class="js-size" min="12" max="120" value="40" aria-label="Preview size">
+          <output class="js-size-out">40px</output>
+        </label>
+        <button class="link-btn js-reset" data-tip="Bring back the original sample sentence">
+          <svg width="13" height="13"><use href="#i-reset"/></svg> Reset
+        </button>
+        <button class="link-btn js-toggle" aria-expanded="false" aria-controls="drawer-${f.id}"
+                data-tip="Show the original file this font came from and what it was converted into" data-tip-pos="left">
+          File Details <svg width="13" height="13"><use href="#i-chevron"/></svg>
+        </button>
+      </div>
+
+      <div class="drawer" id="drawer-${f.id}" hidden>
+        <div class="details">
+          <div>
+            <h5 class="caption white">Original</h5>
+            <dl>
+              <dt>File</dt><dd>${esc(f.origName)}</dd>
+              <dt>Format</dt><dd>${esc(f.origFormat)}</dd>
+              <dt>Size</dt><dd>${fmtBytes(f.origSize)}</dd>
+            </dl>
+          </div>
+          <div>
+            <h5 class="caption">Converted</h5>
+            <dl>
+              <dt>File</dt><dd>${esc(f.fileName)}</dd>
+              <dt>Format</dt><dd>${outLabel}</dd>
+              <dt>Size</dt><dd>${fmtBytes(f.outSize)}</dd>
+              ${f.family ? `<dt>Family</dt><dd>${esc(f.family)}</dd>` : ''}
+              ${f.style ? `<dt>Style</dt><dd>${esc(f.style)}</dd>` : ''}
+            </dl>
+          </div>
+          <div class="src"><b>Source:</b> ${esc(f.source)}</div>
+        </div>
+      </div>`;
+
+    // Download single
+    el.querySelector('.js-dl').addEventListener('click', () => {
+      triggerDownload(new Blob([f.buffer], { type: f.outExt === 'otf' ? 'font/otf' : 'font/ttf' }), f.fileName);
+    });
+
+    // Size slider
+    const tester = el.querySelector('.js-tester');
+    const out = el.querySelector('.js-size-out');
+    el.querySelector('.js-size').addEventListener('input', e => {
+      tester.style.setProperty('--fs', e.target.value + 'px');
+      out.textContent = e.target.value + 'px';
+    });
+
+    // Reset text
+    el.querySelector('.js-reset').addEventListener('click', () => { tester.textContent = SAMPLE; });
+
+    // Paste as plain text only
+    tester.addEventListener('paste', e => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+
+    // Drawer
+    const toggle = el.querySelector('.js-toggle');
+    const drawer = el.querySelector('.drawer');
+    toggle.addEventListener('click', () => toggleDrawer(toggle, drawer));
+
+    insertCard(el);
+  }
+
+  function renderErrorCard(origName, message, source) {
+    const el = document.createElement('article');
+    el.className = 'card is-error';
+    el.dataset.search = String(origName).toLowerCase();
+    el.innerHTML = `
+      <div class="card-head">
+        <div class="card-title">
+          <div class="card-kicker"><span class="stamp">Couldn't convert</span></div>
+          <h3 class="card-name">${esc(baseName(origName))}</h3>
+        </div>
+      </div>
+      <p class="err-msg">${esc(message)}<br><span style="color:var(--muted);font-size:12px">${esc(origName)}${source ? ' &middot; ' + esc(source) : ''}</span></p>`;
+    insertCard(el);
+  }
+
+  function insertCard(el) {
+    emptyEl.style.display = 'none';
+    if (state.query && !el.dataset.search.includes(state.query)) el.classList.add('is-hidden');
+    grid.appendChild(el);
+    updateResultMeta();
+    $('#clear-btn').disabled = false;
+  }
+
+  function toggleDrawer(btn, drawer) {
+    const open = btn.getAttribute('aria-expanded') === 'true';
+    btn.setAttribute('aria-expanded', String(!open));
+    drawer.classList.remove('opening', 'closing');
+    if (!open) {
+      drawer.hidden = false;
+      void drawer.offsetWidth;            // restart animation
+      drawer.classList.add('opening');
+    } else {
+      drawer.classList.add('closing');
+      drawer.addEventListener('animationend', function h() {
+        drawer.removeEventListener('animationend', h);
+        if (btn.getAttribute('aria-expanded') === 'false') { drawer.hidden = true; drawer.classList.remove('closing'); }
+      });
+    }
+  }
+
+  function updateCounters() {
+    const n = state.fonts.length;
+    const c = $('#font-count');
+    c.textContent = pad2(n);
+    c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump');
+    $('#zip-btn').disabled = n === 0;
+  }
+
+  function updateResultMeta() {
+    const cards = grid.querySelectorAll('.card');
+    const visible = grid.querySelectorAll('.card:not(.is-hidden)');
+    const meta = $('#result-meta');
+    if (!cards.length) { meta.textContent = ''; return; }
+    meta.textContent = state.query ? `Showing ${visible.length} of ${cards.length}` : `${cards.length} item${cards.length === 1 ? '' : 's'}`;
+
+    let none = $('#no-match');
+    if (state.query && cards.length && !visible.length) {
+      if (!none) {
+        none = document.createElement('div');
+        none.id = 'no-match'; none.className = 'empty dots-ink';
+        grid.appendChild(none);
+      }
+      none.innerHTML = `<h3>No matches</h3><p>No font names contain "${esc(state.query)}".</p>`;
+    } else if (none) none.remove();
+  }
+
+  /* ============================================================
+     SEARCH
+     ============================================================ */
+  const searchInput = $('#search');
+  searchInput.addEventListener('input', () => {
+    state.query = searchInput.value.trim().toLowerCase();
+    $('#search-field').classList.toggle('has-value', !!searchInput.value);
+    grid.querySelectorAll('.card').forEach(c => {
+      c.classList.toggle('is-hidden', !!state.query && !c.dataset.search.includes(state.query));
+    });
+    updateResultMeta();
+  });
+  $('#clear-search').addEventListener('click', () => {
+    searchInput.value = ''; searchInput.dispatchEvent(new Event('input')); searchInput.focus();
+  });
+
+  /* ============================================================
+     CLEAR / ZIP
+     ============================================================ */
+  $('#clear-btn').addEventListener('click', () => {
+    state.fonts.forEach(f => { try { if (f.face) document.fonts.delete(f.face); } catch (e) {} });
+    state.fonts = []; state.used.clear();
+    grid.querySelectorAll('.card, #no-match').forEach(c => c.remove());
+    emptyEl.style.display = '';
+    updateCounters(); updateResultMeta(); clearStatus();
+    $('#clear-btn').disabled = true;
+  });
+
+  $('#zip-btn').addEventListener('click', async () => {
+    if (!state.fonts.length) return;
+    const btn = $('#zip-btn');
+    btn.disabled = true;
+    try {
+      const zip = new JSZip();
+      state.fonts.forEach(f => zip.file(f.fileName, f.buffer));
+      const blob = await zip.generateAsync({ type: 'blob' });
+      triggerDownload(blob, 'fonts_' + new Date().toISOString().slice(0, 10) + '.zip');
+      setStatus('success', `<b>ZIP downloaded.</b>${state.fonts.length} font${state.fonts.length === 1 ? '' : 's'} packed and ready to install.`);
+    } catch (e) {
+      setStatus('error', '<b>Could not build the ZIP.</b>' + esc(e.message));
+    } finally {
+      btn.disabled = state.fonts.length === 0;
+    }
+  });
+
+  /* ============================================================
+     LOCAL FILES (drop zone / picker)
+     ============================================================ */
+  const dropZone = $('#drop-zone');
+  const filePicker = $('#file-picker');
+
+  dropZone.addEventListener('click', () => filePicker.click());
+  dropZone.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filePicker.click(); }
+  });
+  ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('is-over'); }));
+  ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('is-over'); }));
+  dropZone.addEventListener('drop', e => { if (e.dataTransfer.files.length) handleLocalFiles(e.dataTransfer.files); });
+  filePicker.addEventListener('change', e => { if (e.target.files.length) handleLocalFiles(e.target.files); filePicker.value = ''; });
+
+  // Stop the browser from opening files dropped outside the zone
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+
+  const FONT_EXT = /\.(woff2?|ttf|otf)$/i;
+  function looksLikeFont(buf) { return ['woff2', 'woff', 'ttf', 'otf'].includes(sniffFontFormat(buf)); }
+
+  async function handleLocalFiles(files) {
+    setStatus('info', '<b>Reading your files...</b>', true);
+    await ensureWoff2Ready();
+
+    const queue = [];
+    for (const file of files) {
+      if (/\.zip$/i.test(file.name)) {
         try {
-          const bin = atob(match[2]);
-          const arr = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-          const ext = match[1].includes('woff2') ? 'woff2' : (match[1].includes('woff') ? 'woff' : 'ttf');
-          fontDataItems.push({ name: 'embedded_font_' + (fontDataItems.length + 1) + '.' + ext, data: arr });
-        } catch(e) {}
+          const zip = await JSZip.loadAsync(file);
+          for (const path of Object.keys(zip.files)) {
+            const entry = zip.files[path];
+            if (entry.dir || /(^|\/)(__MACOSX|\.)/.test(path)) continue;
+            const buf = await entry.async('arraybuffer');
+            if (FONT_EXT.test(path) || looksLikeFont(buf)) queue.push({ name: path.split('/').pop(), buffer: buf, source: file.name });
+          }
+        } catch (e) {
+          renderErrorCard(file.name, 'This ZIP file could not be opened.', 'Your computer');
+        }
+      } else {
+        const buf = await file.arrayBuffer();
+        if (FONT_EXT.test(file.name) || looksLikeFont(buf)) queue.push({ name: file.name, buffer: buf, source: 'Your computer' });
+        else renderErrorCard(file.name, 'This file does not look like a font.', 'Your computer');
       }
-      return;
     }
-    try {
-      const abs = new URL(raw, base || location.href).href;
-      if (/\\.(woff2?|ttf|otf)(\\?.*)?$/i.test(abs)) fontUrls.add(abs);
-    } catch(e) {}
+
+    if (!queue.length) { setStatus('error', '<b>No font files found.</b>Drop .woff, .woff2, .ttf, .otf or a .zip containing them.'); return; }
+
+    let ok = 0;
+    for (let i = 0; i < queue.length; i++) {
+      setStatus('info', `<b>Converting ${i + 1} of ${queue.length}</b>${esc(queue[i].name)}`, true);
+      if (await processFontBuffer(queue[i].buffer, queue[i].name, queue[i].source)) ok++;
+    }
+    finishStatus(ok, queue.length);
   }
 
-  function scanText(cssText, baseUrl) {
-    if (!cssText) return;
-    const re = /url\\(\\s*['"]?([^'")]+?\\.(?:woff2?|ttf|otf)[^'")\\s]*|data:(?:font|application\\/[a-z0-9-]+font)[^'")]*)/gi;
+  function finishStatus(ok, total) {
+    if (ok === total) setStatus('success', `<b>Done. ${ok} font${ok === 1 ? '' : 's'} converted.</b>Try them in the type testers below, then download.`);
+    else if (ok > 0) setStatus('info', `<b>${ok} of ${total} fonts converted.</b>Some files couldn't be read; see the red cards below.`);
+    else setStatus('error', `<b>None of the files could be converted.</b>See the red cards below for the reason.`);
+  }
+
+  /* ============================================================
+     URL SCRAPING
+     ============================================================ */
+  const proxyInput = $('#custom-proxy');
+  proxyInput.value = localStorage.getItem('wfh_proxy') || '';
+  proxyInput.addEventListener('change', () => localStorage.setItem('wfh_proxy', proxyInput.value.trim()));
+
+  function fetchUrl(u) {
+    const p = proxyInput.value.trim();
+    return p ? p + encodeURIComponent(u) : u;
+  }
+
+  function findFontStrings(text, baseUrl, set) {
+    const re = /(?:url\(\s*['"]?|['"])([^'")\s]+\.(?:woff2?|ttf|otf)(?:\?[^'")\s]*)?|data:(?:font|application\/[a-z0-9-]*font[a-z0-9-]*)[^'")]*)/gi;
     let m;
-    while ((m = re.exec(cssText)) !== null) {
-      addUrl(m[1], baseUrl);
+    while ((m = re.exec(text)) !== null) {
+      const raw = m[1].trim();
+      if (raw.startsWith('data:')) { set.add(raw); continue; }
+      try { set.add(new URL(raw, baseUrl).href); } catch (e) {}
     }
   }
 
-  /* 3. Scan DOM style tags */
-  document.querySelectorAll('style').forEach(function(s) { scanText(s.textContent, location.href); });
+  function decodeDataUri(uri) {
+    const m = uri.match(/^data:([^;,]+)(?:;[^,]*)?;base64,(.+)$/);
+    if (!m) return null;
+    const bin = atob(m[2]);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr.buffer;
+  }
 
-  /* 4. Scan link tags */
-  document.querySelectorAll('link[rel*=font], link[as=font], link[rel=preload]').forEach(function(l) {
-    if (l.href && /\\.(woff2?|ttf|otf)/i.test(l.href)) addUrl(l.href, location.href);
-  });
+  function showCorsHelp() {
+    setStatus('error', `
+      <b>This website won't let other pages read it.</b>
+      Browsers block one site from reading another unless the second site allows it. Three ways around it:
+      <ol>
+        <li><strong>Use the Font Grabber bookmark</strong> (Option C). It runs on the website itself, so nothing is blocked.</li>
+        <li><strong>Turn on a CORS extension</strong> such as "Allow CORS" or "CORS Unblock", then try again.</li>
+        <li><strong>Add your own CORS proxy</strong> under Advanced, below the address bar.</li>
+      </ol>`);
+  }
 
-  /* 5. Scan stylesheets and attempt text read */
-  for (let i = 0; i < document.styleSheets.length; i++) {
-    const sheet = document.styleSheets[i];
+  $('#url-form').addEventListener('submit', e => { e.preventDefault(); startScrape(); });
+
+  async function startScrape() {
+    const input = $('#target-url');
+    const btn = $('#scrape-btn');
+    let target = input.value.trim();
+    if (!target) { input.focus(); return; }
+    if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+    try { new URL(target); } catch (e) { setStatus('error', '<b>That address doesn\'t look right.</b>Try something like https://example.com'); return; }
+
+    btn.disabled = true;
     try {
-      if (sheet.href) {
-        addUrl(sheet.href, location.href);
-        fetch(sheet.href).then(function(r){ return r.text(); }).then(function(t){ scanText(t, sheet.href); }).catch(function(){});
-      }
-      for (let j = 0; j < (sheet.cssRules || []).length; j++) {
-        const rule = sheet.cssRules[j];
-        if (rule.cssText) scanText(rule.cssText, sheet.href || location.href);
-      }
-    } catch(e) {}
-  }
-
-  /* 6. Scan performance entries */
-  performance.getEntriesByType('resource').forEach(function(r) {
-    if (/\\.(woff2?|ttf|otf)(\\?.*)?$/i.test(r.name)) addUrl(r.name, location.href);
-  });
-
-  await new Promise(function(r){ setTimeout(r, 600); });
-
-  if (fontUrls.size === 0 && fontDataItems.length === 0) {
-    showToast('❌ No fonts found on this page.', '#f87171');
-    setTimeout(function() { const t = document.getElementById('__font_toast__'); if (t) t.remove(); }, 6000);
-    return;
-  }
-
-  const total = fontUrls.size + fontDataItems.length;
-  showToast('⏳ Downloading ' + total + ' font(s) (including hidden weights)...', '#38bdf8');
-
-  /* 7. Download all URLs */
-  let fetchedCount = 0;
-  for (const u of fontUrls) {
-    try {
-      const res = await fetch(u);
-      if (res.ok) {
-        const buf = await res.arrayBuffer();
-        const clean = u.split('#')[0].split('?')[0];
-        const fname = clean.split('/').pop() || ('font_' + (++fetchedCount) + '.woff2');
-        fontDataItems.push({ name: fname, data: new Uint8Array(buf) });
-        fetchedCount++;
-      }
-    } catch(e) {}
-  }
-
-  if (fontDataItems.length === 0) {
-    showToast('❌ Failed to download fonts. Target server blocked requests.', '#f87171');
-    return;
-  }
-
-  showToast('📦 Packaging ' + fontDataItems.length + ' font(s) into ZIP...', '#38bdf8');
-
-  /* 8. Built-in ZIP generator (No external scripts needed) */
-  const crcTable = [];
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
-    crcTable[n] = c;
-  }
-  function calcCrc(buf) {
-    let crc = -1;
-    for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ crcTable[(crc ^ buf[i]) & 0xFF];
-    return (crc ^ (-1)) >>> 0;
-  }
-
-  const entries = [];
-  let offset = 0;
-  const encoder = new TextEncoder();
-
-  for (let idx = 0; idx < fontDataItems.length; idx++) {
-    const item = fontDataItems[idx];
-    const nameBytes = encoder.encode(item.name);
-    const data = item.data;
-    const crc = calcCrc(data);
-    const lh = new Uint8Array(30 + nameBytes.length);
-    const v = new DataView(lh.buffer);
-    v.setUint32(0, 0x04034b50, true);
-    v.setUint16(4, 20, true);
-    v.setUint32(14, crc, true);
-    v.setUint32(18, data.length, true);
-    v.setUint32(22, data.length, true);
-    v.setUint16(26, nameBytes.length, true);
-    lh.set(nameBytes, 30);
-    entries.push({ nameBytes: nameBytes, data: data, crc: crc, offset: offset, length: data.length });
-    offset += lh.length + data.length;
-  }
-
-  let cdSize = 0;
-  const cdParts = [];
-  for (let idx = 0; idx < entries.length; idx++) {
-    const e = entries[idx];
-    const cdh = new Uint8Array(46 + e.nameBytes.length);
-    const v = new DataView(cdh.buffer);
-    v.setUint32(0, 0x02014b50, true);
-    v.setUint16(4, 20, true);
-    v.setUint16(6, 20, true);
-    v.setUint32(16, e.crc, true);
-    v.setUint32(20, e.length, true);
-    v.setUint32(24, e.length, true);
-    v.setUint16(28, e.nameBytes.length, true);
-    v.setUint32(42, e.offset, true);
-    cdh.set(e.nameBytes, 46);
-    cdParts.push(cdh);
-    cdSize += cdh.length;
-  }
-
-  const eocd = new Uint8Array(22);
-  const ev = new DataView(eocd.buffer);
-  ev.setUint32(0, 0x06054b50, true);
-  ev.setUint16(8, entries.length, true);
-  ev.setUint16(10, entries.length, true);
-  ev.setUint32(12, cdSize, true);
-  ev.setUint32(16, offset, true);
-
-  const zipParts = [];
-  for (let idx = 0; idx < entries.length; idx++) {
-    const e = entries[idx];
-    const lh = new Uint8Array(30 + e.nameBytes.length);
-    const v = new DataView(lh.buffer);
-    v.setUint32(0, 0x04034b50, true);
-    v.setUint16(4, 20, true);
-    v.setUint32(14, e.crc, true);
-    v.setUint32(18, e.length, true);
-    v.setUint32(22, e.length, true);
-    v.setUint16(26, e.nameBytes.length, true);
-    lh.set(e.nameBytes, 30);
-    zipParts.push(lh, e.data);
-  }
-  zipParts.push.apply(zipParts, cdParts);
-  zipParts.push(eocd);
-
-  const zipBlob = new Blob(zipParts, { type: 'application/zip' });
-  const dlLink = document.createElement('a');
-  dlLink.href = URL.createObjectURL(zipBlob);
-  const host = location.hostname.replace(/\\./g, '_') || 'fonts';
-  dlLink.download = 'fonts_' + host + '.zip';
-  document.body.appendChild(dlLink);
-  dlLink.click();
-  dlLink.remove();
-
-  showToast('🎉 <b>Downloaded ' + fontDataItems.length + ' font(s)!</b><br><span style="font-size:12px;color:#94a3b8">Now drop this ZIP into your Font Converter to decode & rename them!</span>', '#4ade80');
-  setTimeout(function() { const t = document.getElementById('__font_toast__'); if (t) t.remove(); }, 8000);
-})();`;
-
-    // Set clean bookmarklet href (No single-line comments!)
-    document.getElementById('bookmarklet-link').href = bookmarkletScript.replace(/\s+/g, ' ');
-
-    // -------------------------------------------------------------
-    // 2. CONVERTER & PARSER ENGINE
-    // -------------------------------------------------------------
-    let harvestedFonts = [];
-    const usedFilenames = new Set();
-
-    const dropZone = document.getElementById('drop-zone');
-    const filePicker = document.getElementById('file-picker');
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-      dropZone.addEventListener(eventName, e => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-      });
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-      dropZone.addEventListener(eventName, e => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-      });
-    });
-
-    dropZone.addEventListener('drop', async e => {
-      const files = e.dataTransfer.files;
-      if (files && files.length > 0) {
-        await handleLocalFiles(files);
-      }
-    });
-
-    filePicker.addEventListener('change', async e => {
-      if (e.target.files && e.target.files.length > 0) {
-        await handleLocalFiles(e.target.files);
-      }
-    });
-
-    async function handleLocalFiles(files) {
-      const logEl = document.getElementById('log-status');
-      const fileList = document.getElementById('file-list');
-      const actionsBar = document.getElementById('actions-bar');
-      document.getElementById('cors-notice').style.display = 'none';
-
-      fileList.innerHTML = '';
-      actionsBar.style.display = 'none';
-      harvestedFonts = [];
-      usedFilenames.clear();
-      logEl.innerText = 'Initializing decoders...';
-
       await ensureWoff2Ready();
 
-      const validFiles = [];
-      for (const file of files) {
-        if (file.name.endsWith('.zip')) {
-          try {
-            const zip = await JSZip.loadAsync(file);
-            for (const relPath of Object.keys(zip.files)) {
-              if (/\.(woff2?|ttf|otf)$/i.test(relPath) && !zip.files[relPath].dir) {
-                const buf = await zip.files[relPath].async('arraybuffer');
-                validFiles.push({ name: relPath.split('/').pop(), buffer: buf });
-              }
-            }
-          } catch (e) {
-            console.error('Failed to unpack zip', e);
-          }
-        } else if (/\.(woff2?|ttf|otf)$/i.test(file.name)) {
-          const buf = await file.arrayBuffer();
-          validFiles.push({ name: file.name, buffer: buf });
-        }
-      }
-
-      if (validFiles.length === 0) {
-        logEl.innerHTML = '<span style="color:var(--error)">No .woff, .woff2, or .ttf files found in selection.</span>';
+      // Direct font link
+      if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(target)) {
+        setStatus('info', '<b>Downloading font file...</b>' + esc(target), true);
+        const res = await fetch(fetchUrl(target));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const buf = await res.arrayBuffer();
+        const name = target.split('#')[0].split('?')[0].split('/').pop();
+        const ok = await processFontBuffer(buf, name, target);
+        finishStatus(ok ? 1 : 0, 1);
         return;
       }
 
-      logEl.innerText = `Processing and converting ${validFiles.length} file(s)...`;
-      actionsBar.style.display = 'flex';
-      document.getElementById('found-count').innerText = `${validFiles.length} font(s) detected`;
+      setStatus('info', '<b>Reading the page...</b>' + esc(target), true);
+      const res = await fetch(fetchUrl(target));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const html = await res.text();
 
-      for (const item of validFiles) {
-        await processFontBuffer(item.buffer, item.name, 'Local File / ZIP');
-      }
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const fontUrls = new Set();
+      const cssUrls = new Set();
 
-      logEl.innerText = `Ready! Converted ${harvestedFonts.length} font(s) with true internal names.`;
-    }
-
-    function ensureWoff2Ready() {
-      return new Promise(resolve => {
-        if (typeof Module !== 'undefined' && typeof Module.decompress === 'function') {
-          return resolve();
-        }
-        if (typeof Module !== 'undefined') {
-          const prevInit = Module.onRuntimeInitialized;
-          Module.onRuntimeInitialized = () => {
-            if (prevInit) prevInit();
-            resolve();
-          };
-        } else {
-          window.addEventListener('load', () => setTimeout(resolve, 500));
-        }
-      });
-    }
-
-    // Direct binary parser for OpenType/TrueType 'name' table
-    function extractTrueFontName(buffer) {
-      try {
-        const view = new DataView(buffer);
-        const numTables = view.getUint16(4, false);
-        let nameTableOffset = 0;
-
-        for (let i = 0; i < numTables; i++) {
-          const tag = view.getUint32(12 + i * 16, false);
-          // 'name' tag is 0x6E616D65
-          if (tag === 0x6E616D65) {
-            nameTableOffset = view.getUint32(12 + i * 16 + 8, false);
-            break;
-          }
-        }
-
-        if (!nameTableOffset) return null;
-
-        const count = view.getUint16(nameTableOffset + 2, false);
-        const stringOffset = nameTableOffset + view.getUint16(nameTableOffset + 4, false);
-
-        const records = {};
-
-        for (let i = 0; i < count; i++) {
-          const recOffset = nameTableOffset + 6 + i * 12;
-          const platformId = view.getUint16(recOffset, false);
-          const nameId = view.getUint16(recOffset + 6, false);
-          const length = view.getUint16(recOffset + 8, false);
-          const offset = view.getUint16(recOffset + 10, false);
-
-          const strStart = stringOffset + offset;
-          if (strStart + length > buffer.byteLength) continue;
-
-          let str = '';
-          if (platformId === 0 || platformId === 3) {
-            // UTF-16BE
-            const chars = [];
-            for (let b = 0; b < length; b += 2) {
-              chars.push(String.fromCharCode(view.getUint16(strStart + b, false)));
-            }
-            str = chars.join('').trim();
-          } else if (platformId === 1) {
-            // Latin-1 / Mac Roman
-            const chars = [];
-            for (let b = 0; b < length; b++) {
-              chars.push(String.fromCharCode(view.getUint8(strStart + b)));
-            }
-            str = chars.join('').trim();
-          }
-
-          if (str && !records[nameId]) {
-            records[nameId] = str;
-          }
-        }
-
-        const typographicFamily = records[16];
-        const typographicSubfamily = records[17];
-        const fullName = records[4];
-        const family = records[1];
-        const subfamily = records[2];
-        const postscript = records[6];
-
-        if (typographicFamily && typographicSubfamily) {
-          return `${typographicFamily} ${typographicSubfamily}`;
-        }
-        if (fullName) return fullName;
-        if (family && subfamily && subfamily.toLowerCase() !== 'regular') {
-          return `${family} ${subfamily}`;
-        }
-        if (family) return family;
-        if (postscript) return postscript.replace(/-/g, ' ');
-
-        return null;
-      } catch (e) {
-        return null;
-      }
-    }
-
-    async function processFontBuffer(buffer, originalFileName, sourceDesc) {
-      const fileList = document.getElementById('file-list');
-      const ext = originalFileName.split('.').pop().toLowerCase();
-      const fallbackBaseName = originalFileName.replace(/\.[^/.]+$/, "");
-
-      const item = document.createElement('div');
-      item.className = 'file-item';
-      item.innerHTML = `
-        <div class="file-meta">
-          <span class="file-name">${originalFileName}</span>
-          <span class="orig-name">${sourceDesc}</span>
-        </div>
-        <span class="status">Converting...</span>
-      `;
-      fileList.appendChild(item);
-
-      const statusEl = item.querySelector('.status');
-      const nameEl = item.querySelector('.file-name');
-
-      try {
-        let outBuffer;
-
-        if (ext === 'woff2') {
-          if (typeof Module === 'undefined' || !Module.decompress) {
-            throw new Error('WOFF2 decoder not ready');
-          }
-          const rawOut = Module.decompress(buffer);
-          if (!rawOut || rawOut === false) throw new Error('Decompression failed');
-          outBuffer = rawOut.buffer.slice(rawOut.byteOffset, rawOut.byteOffset + rawOut.byteLength);
-        } else if (ext === 'woff') {
-          outBuffer = convertWoffToTtf(buffer);
-        } else if (ext === 'ttf' || ext === 'otf') {
-          outBuffer = buffer;
-        } else {
-          item.remove();
-          return;
-        }
-
-        // Determine if font has CFF ('OTTO') or TrueType outlines
-        const view = new DataView(outBuffer);
-        const magic = view.getUint32(0, false);
-        const targetExt = (magic === 0x4F54544F) ? 'otf' : 'ttf';
-
-        // Extract real human name from the font's internal 'name' table
-        const internalName = extractTrueFontName(outBuffer);
-        const finalDisplayName = (internalName && internalName.trim()) ? internalName.trim() : fallbackBaseName;
-        let cleanName = finalDisplayName.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
-
-        // Avoid file collisions in ZIP
-        let finalFilename = `${cleanName}.${targetExt}`;
-        let counter = 1;
-        while (usedFilenames.has(finalFilename.toLowerCase())) {
-          finalFilename = `${cleanName}_${counter++}.${targetExt}`;
-        }
-        usedFilenames.add(finalFilename.toLowerCase());
-
-        nameEl.innerText = finalFilename;
-        harvestedFonts.push({ name: finalFilename, buffer: outBuffer });
-
-        const blob = new Blob([outBuffer], { type: targetExt === 'otf' ? 'font/otf' : 'font/ttf' });
-        const url = URL.createObjectURL(blob);
-
-        statusEl.remove();
-
-        const dlBtn = document.createElement('a');
-        dlBtn.className = 'download-btn';
-        dlBtn.href = url;
-        dlBtn.download = finalFilename;
-        dlBtn.innerText = `Download .${targetExt.toUpperCase()}`;
-        item.appendChild(dlBtn);
-      } catch (e) {
-        statusEl.style.color = 'var(--error)';
-        statusEl.innerText = 'Conversion Error: ' + e.message;
-      }
-    }
-
-    async function downloadAllAsZip() {
-      if (!harvestedFonts.length) return;
-      const zip = new JSZip();
-      harvestedFonts.forEach(f => zip.file(f.name, f.buffer));
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `converted_fonts_${Date.now()}.zip`;
-      a.click();
-    }
-
-    function convertWoffToTtf(arrayBuffer) {
-      const view = new DataView(arrayBuffer);
-      if (view.getUint32(0, false) !== 0x774F4646) throw new Error('Invalid WOFF signature.');
-      const flavor = view.getUint32(4, false);
-      const numTables = view.getUint16(12, false);
-      const totalSfntSize = view.getUint32(16, false);
-      const searchRange = Math.pow(2, Math.floor(Math.log2(numTables))) * 16;
-      const entrySelector = Math.floor(Math.log2(numTables));
-      const rangeShift = (numTables * 16) - searchRange;
-
-      const out = new Uint8Array(Math.max(totalSfntSize, 12 + 16 * numTables + (numTables * 4)));
-      const outView = new DataView(out.buffer);
-      outView.setUint32(0, flavor, false);
-      outView.setUint16(4, numTables, false);
-      outView.setUint16(6, searchRange, false);
-      outView.setUint16(8, entrySelector, false);
-      outView.setUint16(10, rangeShift, false);
-
-      let woffDirOffset = 44, sfntDirOffset = 12, sfntDataOffset = 12 + (16 * numTables);
-
-      for (let i = 0; i < numTables; i++) {
-        const tag = view.getUint32(woffDirOffset, false);
-        const offset = view.getUint32(woffDirOffset + 4, false);
-        const compLength = view.getUint32(woffDirOffset + 8, false);
-        const origLength = view.getUint32(woffDirOffset + 12, false);
-        const origChecksum = view.getUint32(woffDirOffset + 16, false);
-
-        const tableData = new Uint8Array(arrayBuffer, offset, compLength);
-        const decompressed = (compLength < origLength) ? pako.inflate(tableData) : tableData;
-        while (sfntDataOffset % 4 !== 0) sfntDataOffset++;
-
-        outView.setUint32(sfntDirOffset, tag, false);
-        outView.setUint32(sfntDirOffset + 4, origChecksum, false);
-        outView.setUint32(sfntDirOffset + 8, sfntDataOffset, false);
-        outView.setUint32(sfntDirOffset + 12, origLength, false);
-
-        out.set(decompressed, sfntDataOffset);
-        sfntDataOffset += origLength;
-        sfntDirOffset += 16;
-        woffDirOffset += 20;
-      }
-      return out.buffer.slice(0, sfntDataOffset);
-    }
-
-    // -------------------------------------------------------------
-    // 3. DIRECT URL / CDN EXTRACTION
-    // -------------------------------------------------------------
-    async function startScrape() {
-      const inputEl = document.getElementById('target-url');
-      const proxyInput = document.getElementById('custom-proxy');
-      const scrapeBtn = document.getElementById('scrape-btn');
-      const logEl = document.getElementById('log-status');
-      const fileList = document.getElementById('file-list');
-      const actionsBar = document.getElementById('actions-bar');
-      const corsNotice = document.getElementById('cors-notice');
-
-      corsNotice.style.display = 'none';
-
-      let targetUrl = inputEl.value.trim();
-      if (!targetUrl) return;
-      if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-        targetUrl = 'https://' + targetUrl;
-      }
-
-      scrapeBtn.disabled = true;
-      fileList.innerHTML = '';
-      actionsBar.style.display = 'none';
-      harvestedFonts = [];
-      usedFilenames.clear();
-      logEl.innerText = 'Connecting to resource...';
-
-      const proxyPrefix = proxyInput.value.trim();
-      function getFetchUrl(u) {
-        return proxyPrefix ? (proxyPrefix + encodeURIComponent(u)) : u;
-      }
-
-      try {
-        await ensureWoff2Ready();
-
-        // Direct font link (.woff, .woff2, .ttf, .otf)
-        if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(targetUrl)) {
-          logEl.innerText = 'Downloading font file...';
-          const res = await fetch(getFetchUrl(targetUrl));
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          const buf = await res.arrayBuffer();
-          const clean = targetUrl.split('#')[0].split('?')[0];
-          const name = clean.split('/').pop();
-          actionsBar.style.display = 'flex';
-          document.getElementById('found-count').innerText = '1 font detected';
-          await processFontBuffer(buf, name, targetUrl);
-          logEl.innerText = 'Font converted successfully!';
-          return;
-        }
-
-        logEl.innerText = 'Fetching page source & scanning stylesheets...';
-        const res = await fetch(getFetchUrl(targetUrl));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const html = await res.text();
-
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const fontUrls = new Set();
-        const cssUrls = new Set();
-
-        // 1. Scan raw HTML for font strings & Base64
-        findFontStrings(html, targetUrl, fontUrls);
-
-        // 2. Scan inline <style> tags
-        doc.querySelectorAll('style').forEach(st => findFontStrings(st.textContent, targetUrl, fontUrls));
-
-        // 3. Scan linked stylesheets and preload links
-        doc.querySelectorAll('link[rel="stylesheet"], link[as="font"], link[rel="preload"]').forEach(el => {
-          const href = el.getAttribute('href');
-          if (href) {
-            try {
-              const abs = new URL(href, targetUrl).href;
-              if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(abs)) fontUrls.add(abs);
-              else if (el.rel === 'stylesheet') cssUrls.add(abs);
-            } catch(e) {}
-          }
-        });
-
-        // 4. Download and parse linked CSS files for all @font-face declarations
-        let cCount = 1;
-        for (const cssUrl of cssUrls) {
-          logEl.innerText = `Scanning stylesheet (${cCount++}/${cssUrls.size})...`;
-          try {
-            const cssRes = await fetch(getFetchUrl(cssUrl));
-            if (cssRes.ok) {
-              const cssText = await cssRes.text();
-              findFontStrings(cssText, cssUrl, fontUrls);
-            }
-          } catch(e) {}
-        }
-
-        if (fontUrls.size === 0) {
-          logEl.innerHTML = '<span style="color:var(--error)">No font declarations found directly in HTML/CSS. Use the Bookmarklet on the live site!</span>';
-          return;
-        }
-
-        logEl.innerText = `Found ${fontUrls.size} font(s) (including hidden variants). Downloading...`;
-        actionsBar.style.display = 'flex';
-        document.getElementById('found-count').innerText = `${fontUrls.size} font(s) detected`;
-
-        for (const fUrl of fontUrls) {
-          if (fUrl.startsWith('data:')) {
-            // Handle Base64 embedded font
-            const m = fUrl.match(/^data:([^;]+);base64,(.+)$/);
-            if (m) {
-              try {
-                const bin = atob(m[2]);
-                const arr = new Uint8Array(bin.length);
-                for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-                const ext = m[1].includes('woff2') ? 'woff2' : (m[1].includes('woff') ? 'woff' : 'ttf');
-                await processFontBuffer(arr.buffer, 'embedded_font.' + ext, 'Inline CSS Base64');
-              } catch(e) {}
-            }
-            continue;
-          }
-
-          try {
-            const fRes = await fetch(getFetchUrl(fUrl));
-            if (fRes.ok) {
-              const fBuf = await fRes.arrayBuffer();
-              const cleanUrl = fUrl.split('#')[0].split('?')[0];
-              const origFileName = cleanUrl.split('/').pop();
-              await processFontBuffer(fBuf, origFileName, fUrl);
-            }
-          } catch(e) {}
-        }
-        logEl.innerText = `Complete! Processed ${harvestedFonts.length} font(s).`;
-      } catch (err) {
-        logEl.innerText = '';
-        corsNotice.style.display = 'block';
-      } finally {
-        scrapeBtn.disabled = false;
-      }
-    }
-
-    function findFontStrings(text, baseUrl, urlSet) {
-      const regex = /(?:url\(\s*['"]?|['"])([^'")\s]+\.(?:woff2?|ttf|otf)(?:\?[^'")\s]*)?|data:(?:font|application\/[a-z0-9-]+font)[^'")]*)/gi;
-      let match;
-      while ((match = regex.exec(text)) !== null) {
-        let raw = match[1].trim();
-        if (raw.startsWith('data:')) {
-          urlSet.add(raw);
-          continue;
-        }
+      findFontStrings(html, target, fontUrls);
+      doc.querySelectorAll('style').forEach(s => findFontStrings(s.textContent, target, fontUrls));
+      doc.querySelectorAll('link[href]').forEach(el => {
         try {
-          const abs = new URL(raw, baseUrl).href;
-          urlSet.add(abs);
+          const abs = new URL(el.getAttribute('href'), target).href;
+          const rel = (el.getAttribute('rel') || '').toLowerCase();
+          const as = (el.getAttribute('as') || '').toLowerCase();
+          if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(abs)) fontUrls.add(abs);
+          else if (rel.includes('stylesheet') || as === 'style') cssUrls.add(abs);
+        } catch (e) {}
+      });
+
+      // Stylesheets (and one level of @import)
+      let i = 0;
+      for (const cssUrl of Array.from(cssUrls)) {
+        setStatus('info', `<b>Scanning stylesheet ${++i} of ${cssUrls.size}</b>${esc(cssUrl)}`, true);
+        try {
+          const r = await fetch(fetchUrl(cssUrl));
+          if (!r.ok) continue;
+          const css = await r.text();
+          findFontStrings(css, cssUrl, fontUrls);
+          for (const imp of css.matchAll(/@import\s+(?:url\()?\s*['"]?([^'";)\s]+)['"]?\s*\)?/g)) {
+            try {
+              const sub = new URL(imp[1], cssUrl).href;
+              const r2 = await fetch(fetchUrl(sub));
+              if (r2.ok) findFontStrings(await r2.text(), sub, fontUrls);
+            } catch (e) {}
+          }
         } catch (e) {}
       }
+
+      if (!fontUrls.size) {
+        setStatus('error', '<b>No fonts found in this page\'s code.</b>Some sites load fonts with scripts after the page opens. The Font Grabber bookmark (Option C) catches those.');
+        return;
+      }
+
+      const list = Array.from(fontUrls);
+      let ok = 0;
+      for (let k = 0; k < list.length; k++) {
+        const u = list[k];
+        setStatus('info', `<b>Converting font ${k + 1} of ${list.length}</b>${esc(u.startsWith('data:') ? 'Embedded font' : u)}`, true);
+        try {
+          if (u.startsWith('data:')) {
+            const buf = decodeDataUri(u);
+            if (buf && await processFontBuffer(buf, 'embedded-font-' + (k + 1), 'Embedded in page CSS')) ok++;
+            continue;
+          }
+          const r = await fetch(fetchUrl(u));
+          if (!r.ok) { renderErrorCard(u.split('?')[0].split('/').pop(), 'The website refused to send this file (HTTP ' + r.status + ').', u); continue; }
+          const buf = await r.arrayBuffer();
+          const name = u.split('#')[0].split('?')[0].split('/').pop();
+          if (await processFontBuffer(buf, name, u)) ok++;
+        } catch (e) {
+          renderErrorCard(u.split('?')[0].split('/').pop(), 'Blocked by the browser (CORS). Try the Font Grabber bookmark.', u);
+        }
+      }
+      finishStatus(ok, list.length);
+    } catch (err) {
+      showCorsHelp();
+    } finally {
+      btn.disabled = false;
     }
+  }
+
+  /* ============================================================
+     FONT GRABBER BOOKMARKLET
+     Written as a normal function, serialised with toString(),
+     then URL-encoded so no characters break the javascript: URL.
+     Self-contained: no external scripts, builds the ZIP itself.
+     ============================================================ */
+  async function fontGrabber() {
+    var TID = '__wfh_grabber__';
+    function toast(html, tone) {
+      var t = document.getElementById(TID);
+      if (!t) {
+        t = document.createElement('div');
+        t.id = TID;
+        t.style.cssText = 'position:fixed;right:20px;bottom:20px;z-index:2147483647;max-width:360px;padding:14px 16px;' +
+          'background:#fff;color:#111;border:2px solid #111;box-shadow:5px 5px 0 #111;border-radius:3px;' +
+          'font:500 14px/1.45 "Helvetica Neue",Helvetica,Arial,sans-serif;';
+        document.body.appendChild(t);
+      }
+      var bar = tone === 'error' ? '#c93b3b' : (tone === 'ok' ? '#3a7d44' : '#2f528f');
+      t.style.borderLeft = '8px solid ' + bar;
+      t.innerHTML = '<div style="font:900 11px/1 Helvetica,Arial,sans-serif;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px">Font Grabber</div>' + html;
+    }
+    function closeLater(ms) { setTimeout(function () { var t = document.getElementById(TID); if (t) t.remove(); }, ms); }
+
+    try {
+      toast('Scanning this page and loading every font weight...');
+      var FONT_RE = /\.(woff2?|ttf|otf)(\?.*)?$/i;
+      var urls = new Set();
+      var items = [];
+
+      function add(raw, base) {
+        if (!raw) return;
+        raw = String(raw).trim().replace(/^url\(\s*['"]?/, '').replace(/['"]?\s*\)$/, '');
+        if (/^data:(font|application\/[a-z0-9-]*font)/i.test(raw)) {
+          var m = raw.match(/^data:([^;,]+)(?:;[^,]*)?;base64,(.+)$/);
+          if (m) {
+            try {
+              var bin = atob(m[2]); var arr = new Uint8Array(bin.length);
+              for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+              var ext = /woff2/.test(m[1]) ? 'woff2' : (/woff/.test(m[1]) ? 'woff' : 'ttf');
+              items.push({ name: 'embedded-font-' + (items.length + 1) + '.' + ext, data: arr });
+            } catch (e) {}
+          }
+          return;
+        }
+        try { var abs = new URL(raw, base || location.href).href; if (FONT_RE.test(abs)) urls.add(abs); } catch (e) {}
+      }
+      function scan(text, base) {
+        if (!text) return;
+        var re = /url\(\s*['"]?([^'")]+)['"]?\s*\)/gi, m;
+        while ((m = re.exec(text)) !== null) add(m[1], base);
+      }
+
+      // 1. Force-load every declared @font-face (wakes up hidden weights)
+      if (document.fonts) {
+        var loads = [];
+        document.fonts.forEach(function (f) { loads.push(f.load().catch(function () {})); });
+        await Promise.race([Promise.all(loads), new Promise(function (r) { setTimeout(r, 5000); })]);
+      }
+
+      // 2. Inline <style>
+      document.querySelectorAll('style').forEach(function (s) { scan(s.textContent, location.href); });
+
+      // 3. <link> preloads / direct font links
+      document.querySelectorAll('link[href]').forEach(function (l) { if (FONT_RE.test(l.href)) urls.add(l.href); });
+
+      // 4. Stylesheets (walk rules; fetch text when cross-origin rules are locked)
+      var pending = [];
+      function walk(sheet) {
+        var base = sheet.href || location.href;
+        try {
+          var rules = sheet.cssRules;
+          for (var i = 0; i < rules.length; i++) {
+            var r = rules[i];
+            if (r.styleSheet) walk(r.styleSheet);
+            else if (r.cssRules) walk({ href: base, cssRules: r.cssRules });
+            else if (r.cssText) scan(r.cssText, base);
+          }
+        } catch (e) {
+          if (sheet.href) pending.push(fetch(sheet.href).then(function (res) { return res.text(); }).then(function (t) { scan(t, sheet.href); }).catch(function () {}));
+        }
+      }
+      for (var s = 0; s < document.styleSheets.length; s++) walk(document.styleSheets[s]);
+      await Promise.all(pending);
+
+      // 5. Everything the browser actually downloaded
+      performance.getEntriesByType('resource').forEach(function (r) { if (FONT_RE.test(r.name)) urls.add(r.name); });
+
+      var total = urls.size + items.length;
+      if (!total) { toast('No fonts found on this page. Try scrolling, wait a moment, then click the bookmark again.', 'error'); closeLater(7000); return; }
+
+      // 6. Download
+      var done = 0, failed = 0;
+      for (var u of urls) {
+        toast('Downloading font ' + (++done) + ' of ' + urls.size + '...');
+        try {
+          var res = await fetch(u);
+          if (!res.ok) { failed++; continue; }
+          var buf = new Uint8Array(await res.arrayBuffer());
+          var name = decodeURIComponent(u.split('#')[0].split('?')[0].split('/').pop() || 'font');
+          items.push({ name: name, data: buf });
+        } catch (e) { failed++; }
+      }
+      if (!items.length) { toast('The website blocked every font download.', 'error'); closeLater(7000); return; }
+
+      // 7. Build an uncompressed ZIP (no external libraries)
+      var table = [];
+      for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); table[n] = c >>> 0; }
+      function crc32(b) { var x = -1; for (var i = 0; i < b.length; i++) x = (x >>> 8) ^ table[(x ^ b[i]) & 255]; return (x ^ -1) >>> 0; }
+
+      var enc = new TextEncoder(), seen = {}, parts = [], central = [], offset = 0, cdSize = 0;
+      items.forEach(function (it) {
+        var nm = it.name, base = nm.replace(/(\.[^.]+)?$/, ''), ext = (nm.match(/\.[^.]+$/) || [''])[0], i = 2;
+        while (seen[nm.toLowerCase()]) nm = base + '-' + (i++) + ext;
+        seen[nm.toLowerCase()] = 1;
+        var nb = enc.encode(nm), crc = crc32(it.data), len = it.data.length;
+
+        var lh = new Uint8Array(30 + nb.length), lv = new DataView(lh.buffer);
+        lv.setUint32(0, 0x04034b50, true); lv.setUint16(4, 20, true); lv.setUint16(6, 0x0800, true);
+        lv.setUint32(14, crc, true); lv.setUint32(18, len, true); lv.setUint32(22, len, true); lv.setUint16(26, nb.length, true);
+        lh.set(nb, 30);
+        parts.push(lh, it.data);
+
+        var ch = new Uint8Array(46 + nb.length), cv = new DataView(ch.buffer);
+        cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true); cv.setUint16(8, 0x0800, true);
+        cv.setUint32(16, crc, true); cv.setUint32(20, len, true); cv.setUint32(24, len, true); cv.setUint16(28, nb.length, true);
+        cv.setUint32(42, offset, true);
+        ch.set(nb, 46);
+        central.push(ch); cdSize += ch.length;
+        offset += lh.length + len;
+      });
+      var end = new Uint8Array(22), ev = new DataView(end.buffer);
+      ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, items.length, true); ev.setUint16(10, items.length, true);
+      ev.setUint32(12, cdSize, true); ev.setUint32(16, offset, true);
+
+      var blob = new Blob(parts.concat(central, [end]), { type: 'application/zip' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'fonts_' + (location.hostname.replace(/[^a-z0-9]+/gi, '_') || 'page') + '.zip';
+      document.body.appendChild(a); a.click(); a.remove();
+
+      toast('<b>' + items.length + ' font' + (items.length === 1 ? '' : 's') + ' downloaded.</b>' +
+            (failed ? ' (' + failed + ' blocked)' : '') +
+            '<br><span style="color:#6b675d;font-size:12.5px">Drop the ZIP into Font Harvester to convert and rename them.</span>', 'ok');
+      closeLater(9000);
+    } catch (err) {
+      toast('Something went wrong: ' + (err && err.message ? err.message : err), 'error');
+      closeLater(8000);
+    }
+  }
+
+  (function setupGrabber() {
+    const link = $('#grabber-link');
+    link.href = 'javascript:' + encodeURIComponent('(' + fontGrabber.toString() + ')();void 0');
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      setStatus('info', '<b>Drag the Font Grabber button to your bookmarks bar.</b>Then open any website and click the bookmark there. (Show the bar with Ctrl+Shift+B, or Cmd+Shift+B on Mac.)');
+    });
+  })();
+
+  // Warm up the WOFF2 decoder in the background
+  ensureWoff2Ready();
   </script>
 </body>
 </html>
