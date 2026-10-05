@@ -875,7 +875,7 @@
       }
       
       if (!f.formats.some(x => x.outExt === outExt)) {
-        const clean = display.replace(/[<>:"/\\\\|?*\x00-\x1F]/g, '_').trim() || 'font';
+        const clean = display.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim() || 'font';
         let fileName = clean + '.' + outExt, n = 2;
         while (state.used.has(fileName.toLowerCase())) fileName = clean + ' (' + (n++) + ').' + outExt;
         state.used.add(fileName.toLowerCase());
@@ -899,7 +899,6 @@
       return false;
     }
   }
-
 
   /* ============================================================
      RENDER
@@ -925,7 +924,111 @@
         
         const grp = document.createElement('div');
         grp.className = 'family-group';
-        grp.innerHTML = \`<div class="family-head"><h3>\${esc(fam)}</h3></div><div class="family-grid"></div>\
+        grp.innerHTML = '<div class="family-head"><h3>' + esc(fam) + '</h3></div><div class="family-grid"></div>';
+        
+        const card = document.createElement('article');
+        card.className = 'card';
+        
+        const chipsHtml = list.map(f => '<button type="button" class="chip ' + (f.name === activeF.name ? 'active' : '') + '" data-name="' + esc(f.name) + '" style="' + (f.name === activeF.name ? 'background:var(--ink);color:var(--white)' : '') + '">' + esc(f.style) + '</button>').join(' ');
+        
+        const formatsHtml = activeF.formats.map(fmt => '<button type="button" class="btn btn-blue btn-sm js-dl" data-id="' + fmt.id + '">.<svg width="14" height="14"><use href="#i-download"/></svg> ' + fmt.outExt.toUpperCase() + '</button>').join(' ');
+        
+        card.innerHTML = `
+          <div class="card-head">
+            <div class="card-title">
+               <h3 class="card-name">${esc(fam)}</h3>
+            </div>
+          </div>
+          <div style="padding: 12px 18px; border-bottom: 2px solid var(--ink); display: flex; gap: 8px; flex-wrap: wrap;" class="js-chips">
+             ${chipsHtml}
+          </div>
+          <div class="tester-wrap">
+            <span class="tester-label">Type tester</span>
+            <div class="tester js-tester" contenteditable="true" spellcheck="false" role="textbox" style="font-family:'${activeF.formats[0].cssFamily}', serif">${esc(SAMPLE)}</div>
+          </div>
+          <div class="card-controls" style="justify-content: space-between;">
+             <label style="display:flex;align-items:center;gap:8px;font:700 13px/1 var(--sans);cursor:pointer;"><input type="checkbox" class="js-select" ${activeF.selected ? 'checked' : ''}> Select ${esc(activeF.style)}</label>
+             <div style="display:flex;gap:8px;">${formatsHtml}</div>
+          </div>
+        `;
+        
+        card.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', e => {
+           state.activeVariant[fam] = e.target.dataset.name;
+           renderApp();
+        }));
+        
+        card.querySelector('.js-select').addEventListener('change', e => {
+           activeF.selected = e.target.checked;
+           updateCounters();
+        });
+        
+        card.querySelectorAll('.js-dl').forEach(btn => btn.addEventListener('click', e => {
+           const fmt = activeF.formats.find(x => x.id == e.currentTarget.dataset.id);
+           triggerDownload(new Blob([fmt.buffer], { type: 'font/' + fmt.outExt }), fmt.fileName);
+        }));
+        
+        grp.querySelector('.family-grid').appendChild(card);
+        grid.appendChild(grp);
+      }
+    } else {
+      // Individual mode
+      const fg = document.createElement('div');
+      fg.className = 'family-grid';
+      
+      activeList.forEach(f => {
+        const card = document.createElement('article');
+        card.className = 'card';
+        const formatsHtml = f.formats.map(fmt => '<button type="button" class="btn btn-blue btn-sm js-dl" data-id="' + fmt.id + '"><svg width="14" height="14"><use href="#i-download"/></svg> .' + fmt.outExt.toUpperCase() + '</button>').join(' ');
+        
+        card.innerHTML = `
+          <div class="card-head">
+            <div class="card-title">
+               <h3 class="card-name">${esc(f.name)}</h3>
+            </div>
+          </div>
+          <div class="tester-wrap">
+            <span class="tester-label">Type tester</span>
+            <div class="tester js-tester" contenteditable="true" spellcheck="false" role="textbox" style="font-family:'${f.formats[0].cssFamily}', serif">${esc(SAMPLE)}</div>
+          </div>
+          <div class="card-controls" style="justify-content: space-between;">
+             <label style="display:flex;align-items:center;gap:8px;font:700 13px/1 var(--sans);cursor:pointer;"><input type="checkbox" class="js-select" ${f.selected ? 'checked' : ''}> Select font</label>
+             <div style="display:flex;gap:8px;">${formatsHtml}</div>
+          </div>
+        `;
+        
+        card.querySelector('.js-select').addEventListener('change', e => { f.selected = e.target.checked; updateCounters(); });
+        card.querySelectorAll('.js-dl').forEach(btn => btn.addEventListener('click', e => {
+           const fmt = f.formats.find(x => x.id == e.currentTarget.dataset.id);
+           triggerDownload(new Blob([fmt.buffer], { type: 'font/' + fmt.outExt }), fmt.fileName);
+        }));
+        fg.appendChild(card);
+      });
+      if (activeList.length) grid.appendChild(fg);
+    }
+    
+    if (errorList.length) {
+       const errGrp = document.createElement('div');
+       errGrp.className = 'family-group error-group';
+       errGrp.innerHTML = '<div class="family-head"><h3>Could not convert</h3></div><div class="family-grid"></div>';
+       const eg = errGrp.querySelector('.family-grid');
+       errorList.forEach(e => {
+          const card = document.createElement('article'); card.className = 'card is-error';
+          card.innerHTML = '<div class="card-head"><div class="card-title"><div class="card-kicker"><span class="stamp">Couldn\'t convert</span></div><h3 class="card-name">' + esc(baseName(e.origName)) + '</h3></div></div><p class="err-msg">' + esc(e.message) + '<br><span style="color:var(--muted);font-size:12px">' + esc(e.origName) + '</span></p>';
+          eg.appendChild(card);
+       });
+       grid.appendChild(errGrp);
+    }
+    
+    if (!activeList.length && !errorList.length) {
+       const none = document.createElement('div');
+       none.className = 'empty dots-ink';
+       none.innerHTML = '<h3>No matches</h3><p>No font names contain "' + esc(state.query) + '".</p>';
+       grid.appendChild(none);
+    }
+    
+    $('#clear-btn').disabled = false;
+    updateCounters();
+  }
 
   /* ============================================================
      EVENTS & CONTROLS
@@ -938,12 +1041,199 @@
     
     $('#zip-btn').disabled = selected.length === 0;
     const zipLbl = $('#zip-btn .btn-label');
-    if (zipLbl) zipLbl.textContent = selected.length ? \`Download Selected (\${selected.length}) as ZIP\` : 'Download Selected as ZIP';
+    if (zipLbl) zipLbl.textContent = selected.length ? `Download Selected (${selected.length}) as ZIP` : 'Download Selected as ZIP';
     
     const meta = $('#result-meta');
     const total = state.fonts.length;
     if (total === 0) { meta.textContent = ''; return; }
-    meta.textContent = state.query ? \`Showing matches (\${selected.length} selected)\` : \`\${total} font\${total === 1 ? '' : 's'} (\${selected.length} selected)\
+    meta.textContent = state.query ? `Showing matches (${selected.length} selected)` : `${total} font${total === 1 ? '' : 's'} (${selected.length} selected)`;
+  }
+
+  $('#group-toggle').addEventListener('change', e => {
+     state.groupByFamily = e.target.checked;
+     renderApp();
+  });
+
+  $('#select-all-btn').addEventListener('click', () => {
+     const visible = state.fonts.filter(f => !state.query || (f.name + ' ' + f.family).toLowerCase().includes(state.query));
+     const allSelected = visible.every(f => f.selected);
+     visible.forEach(f => f.selected = !allSelected);
+     renderApp();
+  });
+
+  const searchInput = $('#search');
+  searchInput.addEventListener('input', () => {
+    state.query = searchInput.value.trim().toLowerCase();
+    $('#search-field').classList.toggle('has-value', !!searchInput.value);
+    renderApp();
+  });
+  $('#clear-search').addEventListener('click', () => {
+    searchInput.value = ''; searchInput.dispatchEvent(new Event('input')); searchInput.focus();
+  });
+
+  $('#clear-btn').addEventListener('click', () => {
+    state.fonts = []; state.errors = []; state.used.clear();
+    renderApp();
+    $('#clear-btn').disabled = true;
+    clearStatus();
+  });
+
+  $('#zip-btn').addEventListener('click', async () => {
+    const selected = state.fonts.filter(f => f.selected);
+    if (!selected.length) return;
+    const btn = $('#zip-btn'); btn.disabled = true;
+    try {
+      const zip = new JSZip();
+      selected.forEach(f => {
+         f.formats.forEach(fmt => zip.file(fmt.fileName, fmt.buffer));
+      });
+      const blob = await zip.generateAsync({ type: 'blob' });
+      triggerDownload(blob, 'fonts_' + new Date().toISOString().slice(0, 10) + '.zip');
+      setStatus('success', `<b>ZIP downloaded.</b>${selected.length} font${selected.length===1?'':'s'} packed and ready to install.`);
+    } catch (e) {
+      setStatus('error', '<b>Could not build the ZIP.</b>' + esc(e.message));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Local files
+  const dropZone = $('#drop-zone'), filePicker = $('#file-picker');
+  dropZone.addEventListener('click', () => filePicker.click());
+  dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filePicker.click(); } });
+  ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('is-over'); }));
+  ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('is-over'); }));
+  dropZone.addEventListener('drop', e => { if (e.dataTransfer.files.length) handleLocalFiles(e.dataTransfer.files); });
+  filePicker.addEventListener('change', e => { if (e.target.files.length) handleLocalFiles(e.target.files); filePicker.value = ''; });
+  window.addEventListener('dragover', e => e.preventDefault()); window.addEventListener('drop', e => e.preventDefault());
+
+  const FONT_EXT = /\.(woff2?|ttf|otf)$/i;
+  function looksLikeFont(buf) { return ['woff2', 'woff', 'ttf', 'otf'].includes(sniffFontFormat(buf)); }
+
+  async function handleLocalFiles(files) {
+    setStatus('info', '<b>Reading your files...</b>', true);
+    await ensureWoff2Ready();
+    const queue = [];
+    for (const file of files) {
+      if (/\.zip$/i.test(file.name)) {
+        try {
+          const zip = await JSZip.loadAsync(file);
+          for (const path of Object.keys(zip.files)) {
+            const entry = zip.files[path];
+            if (entry.dir || /(^|\/)(__MACOSX|\.)/.test(path)) continue;
+            const buf = await entry.async('arraybuffer');
+            if (FONT_EXT.test(path) || looksLikeFont(buf)) queue.push({ name: path.split('/').pop(), buffer: buf, source: file.name });
+          }
+        } catch (e) { state.errors.push({ origName: file.name, message: 'This ZIP file could not be opened.', source: 'Your computer' }); }
+      } else {
+        const buf = await file.arrayBuffer();
+        if (FONT_EXT.test(file.name) || looksLikeFont(buf)) queue.push({ name: file.name, buffer: buf, source: 'Your computer' });
+        else state.errors.push({ origName: file.name, message: 'This file does not look like a font.', source: 'Your computer' });
+      }
+    }
+    if (!queue.length) { renderApp(); setStatus('error', '<b>No font files found.</b>Drop .woff, .woff2, .ttf, .otf or a .zip containing them.'); return; }
+
+    let ok = 0;
+    for (let i = 0; i < queue.length; i++) {
+      setStatus('info', `<b>Converting ${i + 1} of ${queue.length}</b>${esc(queue[i].name)}`, true);
+      if (await processFontBuffer(queue[i].buffer, queue[i].name, queue[i].source)) ok++;
+    }
+    finishStatus(ok, queue.length);
+  }
+
+  function finishStatus(ok, total) {
+    if (ok === total) setStatus('success', `<b>Done. ${ok} font${ok === 1 ? '' : 's'} converted.</b>Try them in the type testers below, then download.`);
+    else if (ok > 0) setStatus('info', `<b>${ok} of ${total} fonts converted.</b>Some files couldn't be read; see the red cards below.`);
+    else setStatus('error', `<b>None of the files could be converted.</b>See the red cards below for the reason.`);
+  }
+
+  // URL Scraping
+  const proxyInput = $('#custom-proxy');
+  proxyInput.value = localStorage.getItem('wfh_proxy') || '';
+  proxyInput.addEventListener('change', () => localStorage.setItem('wfh_proxy', proxyInput.value.trim()));
+  function fetchUrl(u) { const p = proxyInput.value.trim(); return p ? p + encodeURIComponent(u) : u; }
+  
+  function findFontStrings(text, baseUrl, set) {
+    const re = /(?:url\(\s*['"]?|['"])([^'")\s]+\.(?:woff2?|ttf|otf)(?:\?[^'")\s]*)?|data:(?:font|application\/[a-z0-9-]*font[a-z0-9-]*)[^'")]*)/gi;
+    let m; while ((m = re.exec(text)) !== null) {
+      const raw = m[1].trim();
+      if (raw.startsWith('data:')) { set.add(raw); continue; }
+      try { set.add(new URL(raw, baseUrl).href); } catch (e) {}
+    }
+  }
+  function decodeDataUri(uri) {
+    const m = uri.match(/^data:([^;,]+)(?:;[^,]*)?;base64,(.+)$/);
+    if (!m) return null;
+    const bin = atob(m[2]); const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr.buffer;
+  }
+  function showCorsHelp() { setStatus('error', `<b>This website won't let other pages read it.</b><ol><li>Use Font Grabber</li><li>CORS extension</li><li>CORS proxy</li></ol>`); }
+
+  $('#url-form').addEventListener('submit', e => { e.preventDefault(); startScrape(); });
+  async function startScrape() {
+    const input = $('#target-url'), btn = $('#scrape-btn');
+    let target = input.value.trim();
+    if (!target) { input.focus(); return; }
+    if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+    try { new URL(target); } catch (e) { setStatus('error', '<b>Invalid URL.</b>'); return; }
+    btn.disabled = true;
+    try {
+      await ensureWoff2Ready();
+      if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(target)) {
+        setStatus('info', '<b>Downloading...</b>', true);
+        const res = await fetch(fetchUrl(target));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const ok = await processFontBuffer(await res.arrayBuffer(), target.split('#')[0].split('?')[0].split('/').pop(), target);
+        finishStatus(ok ? 1 : 0, 1); return;
+      }
+      setStatus('info', '<b>Reading page...</b>', true);
+      const res = await fetch(fetchUrl(target));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const fontUrls = new Set(), cssUrls = new Set();
+      findFontStrings(html, target, fontUrls);
+      doc.querySelectorAll('style').forEach(s => findFontStrings(s.textContent, target, fontUrls));
+      doc.querySelectorAll('link[href]').forEach(el => {
+        try {
+          const abs = new URL(el.getAttribute('href'), target).href, rel = (el.getAttribute('rel')||'').toLowerCase(), as = (el.getAttribute('as')||'').toLowerCase();
+          if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(abs)) fontUrls.add(abs);
+          else if (rel.includes('stylesheet') || as === 'style') cssUrls.add(abs);
+        } catch (e) {}
+      });
+      let i = 0;
+      for (const cssUrl of Array.from(cssUrls)) {
+        setStatus('info', `<b>Scanning stylesheet ${++i} of ${cssUrls.size}</b>`, true);
+        try {
+          const r = await fetch(fetchUrl(cssUrl)); if (!r.ok) continue;
+          const css = await r.text(); findFontStrings(css, cssUrl, fontUrls);
+          for (const imp of css.matchAll(/@import\s+(?:url\()?\s*['"]?([^'";)\s]+)['"]?\s*\)?/g)) {
+            try { const sub = new URL(imp[1], cssUrl).href; const r2 = await fetch(fetchUrl(sub)); if (r2.ok) findFontStrings(await r2.text(), sub, fontUrls); } catch(e){}
+          }
+        } catch(e){}
+      }
+      if (!fontUrls.size) { setStatus('error', '<b>No fonts found.</b> Try the Font Grabber bookmark.'); return; }
+      const list = Array.from(fontUrls); let ok = 0;
+      for (let k = 0; k < list.length; k++) {
+        const u = list[k];
+        setStatus('info', `<b>Converting font ${k + 1} of ${list.length}</b>`, true);
+        try {
+          if (u.startsWith('data:')) {
+            const buf = decodeDataUri(u);
+            if (buf && await processFontBuffer(buf, 'embedded-font-' + (k + 1), 'CSS embedded')) ok++;
+            continue;
+          }
+          const r = await fetch(fetchUrl(u));
+          if (!r.ok) { state.errors.push({ origName: u, message: 'HTTP ' + r.status, source: u }); renderApp(); continue; }
+          if (await processFontBuffer(await r.arrayBuffer(), u.split('#')[0].split('?')[0].split('/').pop(), u)) ok++;
+        } catch (e) { state.errors.push({ origName: u, message: 'Blocked by CORS.', source: u }); renderApp(); }
+      }
+      finishStatus(ok, list.length);
+    } catch (err) { showCorsHelp(); } finally { btn.disabled = false; }
+  }
+
+  ensureWoff2Ready();
 
   async function fontGrabber() {
     var TID = '__wfh_grabber__';
