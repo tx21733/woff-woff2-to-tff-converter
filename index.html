@@ -1190,7 +1190,7 @@
     const visible = grid.querySelectorAll('.card:not(.is-hidden)');
     const meta = $('#result-meta');
     if (!cards.length) { meta.textContent = ''; return; }
-    meta.textContent = state.query ? \`Showing \${visible.length} of \${cards.length}\` : \`\${cards.length} item\${cards.length === 1 ? '' : 's'}\`;
+    meta.textContent = state.query ? `Showing ${visible.length} of ${cards.length}` : `${cards.length} item${cards.length === 1 ? '' : 's'}`;
 
     let none = $('#no-match');
     if (state.query && cards.length && !visible.length) {
@@ -1199,7 +1199,7 @@
         none.id = 'no-match'; none.className = 'empty dots-ink';
         grid.appendChild(none);
       }
-      none.innerHTML = \`<h3>No matches</h3><p>No font names contain "\${esc(state.query)}".</p>\`;
+      none.innerHTML = `<h3>No matches</h3><p>No font names contain "${esc(state.query)}".</p>`;
     } else if (none) none.remove();
   }
 
