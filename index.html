@@ -548,16 +548,15 @@
       </a>
 
       <div class="bar-actions">
-        <div class="counter" data-tip="How many fonts are ready to download right now" data-tip-pos="bottom">
-          <span>Fonts ready</span><b id="font-count">00</b>
+        <div class="counter" data-tip="How many fonts are selected" data-tip-pos="bottom">
+          <span>Fonts Selected</span><b id="font-count">0</b>
         </div>
         <button class="btn btn-ghost btn-sm" id="clear-btn" disabled
                 data-tip="Remove every font from the list and start fresh" data-tip-pos="bottom">
-          <svg width="15" height="15"><use href="#i-trash"/></svg><span class="btn-label">Clear</span>
+          <svg width="15" height="15"><use href="#i-trash"/></svg><span class="btn-label">Clear All</span>
         </button>
-        <button class="btn btn-red" id="zip-btn" disabled
-                data-tip="Download every converted font in one .ZIP file, ready to install" data-tip-pos="bottom-left">
-          <svg width="16" height="16"><use href="#i-download"/></svg><span class="btn-label">Download All as ZIP</span>
+        <button class="btn btn-red" id="zip-btn" disabled data-tip="Download selected converted fonts in one .ZIP file, ready to install" data-tip-pos="bottom-left">
+          <svg width="16" height="16"><use href="#i-download"/></svg><span class="btn-label">Download Selected as ZIP</span>
         </button>
       </div>
     </div>
@@ -565,43 +564,7 @@
 
   <main class="wrap">
 
-    <!-- ======================= INTRO ======================= -->
-    <section class="panel hero" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <span class="caption">Issue No. 01 &nbsp;/&nbsp; Type Tools</span>
-        <h1 class="hero-title" id="hero-title">
-          Every website<br>has a <em>typeface</em><br><span class="rule">worth keeping.</span>
-        </h1>
-        <p class="hero-lede">
-          Grab the fonts a website uses, turn them into normal font files your computer understands,
-          and try them out before you download. Everything runs right here in your browser.
-        </p>
-      </div>
 
-      <ol class="steps" aria-label="How it works">
-        <li class="step s1 dots-blue">
-          <span class="step-num">1</span>
-          <div>
-            <h3>Paste a link or drop files</h3>
-            <p>Enter a website address, or drag in font files you already have (.woff, .woff2 or a .zip).</p>
-          </div>
-        </li>
-        <li class="step s2 dots-yellow">
-          <span class="step-num">2</span>
-          <div>
-            <h3>We find &amp; decode them</h3>
-            <p>Hidden web fonts are unpacked and named after the real font inside, not a random code.</p>
-          </div>
-        </li>
-        <li class="step s3 dots-red">
-          <span class="step-num">3</span>
-          <div>
-            <h3>Test, then export</h3>
-            <p>Type your own words in each font, then save one file or all of them, ready to install.</p>
-          </div>
-        </li>
-      </ol>
-    </section>
 
     <!-- ======================= INPUT ======================= -->
     <section aria-labelledby="input-title">
@@ -691,6 +654,11 @@
           <h2 class="section-title" id="results-title">Your fonts</h2>
         </div>
         <div class="results-tools">
+          <label class="toggle-switch">
+             <input type="checkbox" id="group-toggle">
+             <span>Group by Family</span>
+          </label>
+          <button class="btn btn-sm btn-ghost" id="select-all-btn">Select All / None</button>
           <span class="result-meta" id="result-meta"></span>
           <span data-tip="Type part of a font name to show only matching fonts" data-tip-pos="bottom-left" class="search-tip">
             <label class="field search" id="search-field">
@@ -724,14 +692,19 @@
   <script>
   'use strict';
 
+  'use strict';
+
   /* ============================================================
      STATE
      ============================================================ */
   const state = {
-    fonts: [],            // { id, name, family, style, fileName, outExt, origName, origFormat, origSize, buffer, source, face }
-    used: new Set(),      // lowercase filenames already used (ZIP collision guard)
+    fonts: [],            // { name, family, style, version, formats: [{id, outExt, outSize, fileName, buffer, cssFamily, face}], selected: false }
+    errors: [],           // { origName, message, source }
+    used: new Set(),
     query: '',
-    seq: 0
+    seq: 0,
+    groupByFamily: false,
+    activeVariant: {}     // map of family -> index of currently selected font in the family
   };
   const SAMPLE = 'The quick brown fox jumps over the lazy dog';
 
@@ -743,9 +716,7 @@
   /* ============================================================
      HELPERS
      ============================================================ */
-  function esc(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function fmtBytes(n) {
     if (!n && n !== 0) return '-';
     if (n < 1024) return n + ' B';
@@ -757,22 +728,17 @@
 
   function setStatus(type, html, busy) {
     statusEl.className = 'status show ' + type;
-    statusEl.innerHTML = (busy ? '<span class="spinner" aria-hidden="true"></span>' : '') +
-      '<div class="status-body">' + html + '</div>';
+    statusEl.innerHTML = (busy ? '<span class="spinner" aria-hidden="true"></span>' : '') + '<div class="status-body">' + html + '</div>';
   }
   function clearStatus() { statusEl.className = 'status'; statusEl.innerHTML = ''; }
 
   function triggerDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
+    const a = document.createElement('a'); a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
-  /* ============================================================
-     WOFF2 WASM READINESS
-     ============================================================ */
   function ensureWoff2Ready() {
     return new Promise(resolve => {
       if (typeof Module !== 'undefined' && typeof Module.decompress === 'function') return resolve();
@@ -789,27 +755,21 @@
     });
   }
 
-  /* ============================================================
-     FORMAT DETECTION (magic bytes, not file extension)
-     ============================================================ */
   function sniffFontFormat(buffer) {
     if (!buffer || buffer.byteLength < 4) return 'empty';
     const b = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 64));
     const sig = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
-    if (sig === 0x774F4632) return 'woff2';                        // 'wOF2'
-    if (sig === 0x774F4646) return 'woff';                         // 'wOFF'
-    if (sig === 0x00010000 || sig === 0x74727565 || sig === 0x74797031) return 'ttf'; // TrueType / 'true' / 'typ1'
-    if (sig === 0x4F54544F) return 'otf';                          // 'OTTO'
-    if (sig === 0x74746366) return 'collection';                   // 'ttcf'
+    if (sig === 0x774F4632) return 'woff2';
+    if (sig === 0x774F4646) return 'woff';
+    if (sig === 0x00010000 || sig === 0x74727565 || sig === 0x74797031) return 'ttf';
+    if (sig === 0x4F54544F) return 'otf';
+    if (sig === 0x74746366) return 'collection';
     const head = String.fromCharCode.apply(null, b).trim().toLowerCase();
     if (head.startsWith('<') || head.includes('<html') || head.includes('<!doctype')) return 'html';
     return 'unknown';
   }
   const FORMAT_LABEL = { woff2: 'WOFF2', woff: 'WOFF', ttf: 'TTF', otf: 'OTF' };
 
-  /* ============================================================
-     WOFF 1.0 -> SFNT
-     ============================================================ */
   function convertWoffToTtf(arrayBuffer) {
     const view = new DataView(arrayBuffer);
     if (view.getUint32(0, false) !== 0x774F4646) throw new Error('Invalid WOFF signature.');
@@ -819,62 +779,44 @@
     const searchRange = Math.pow(2, entrySelector) * 16;
     const rangeShift = (numTables * 16) - searchRange;
 
-    // Pass 1: read directory, compute exact output size
     const tables = [];
     let size = 12 + 16 * numTables;
     for (let i = 0; i < numTables; i++) {
       const d = 44 + i * 20;
       const t = {
-        tag: view.getUint32(d, false),
-        offset: view.getUint32(d + 4, false),
-        compLength: view.getUint32(d + 8, false),
-        origLength: view.getUint32(d + 12, false),
+        tag: view.getUint32(d, false), offset: view.getUint32(d + 4, false),
+        compLength: view.getUint32(d + 8, false), origLength: view.getUint32(d + 12, false),
         checksum: view.getUint32(d + 16, false)
       };
       size = (size + 3) & ~3;
-      t.outOffset = size;
-      size += t.origLength;
+      t.outOffset = size; size += t.origLength;
       tables.push(t);
     }
     size = (size + 3) & ~3;
-
-    const out = new Uint8Array(size);
-    const outView = new DataView(out.buffer);
-    outView.setUint32(0, flavor, false);
-    outView.setUint16(4, numTables, false);
-    outView.setUint16(6, searchRange, false);
-    outView.setUint16(8, entrySelector, false);
+    const out = new Uint8Array(size); const outView = new DataView(out.buffer);
+    outView.setUint32(0, flavor, false); outView.setUint16(4, numTables, false);
+    outView.setUint16(6, searchRange, false); outView.setUint16(8, entrySelector, false);
     outView.setUint16(10, rangeShift, false);
 
-    // Pass 2: inflate tables
     tables.forEach((t, i) => {
       const raw = new Uint8Array(arrayBuffer, t.offset, t.compLength);
       let data = raw;
-      if (t.compLength < t.origLength) {
-        try { data = pako.inflate(raw); } catch (e) { data = pako.inflateRaw(raw); }
-      }
+      if (t.compLength < t.origLength) { try { data = pako.inflate(raw); } catch (e) { data = pako.inflateRaw(raw); } }
       const dir = 12 + i * 16;
-      outView.setUint32(dir, t.tag, false);
-      outView.setUint32(dir + 4, t.checksum, false);
-      outView.setUint32(dir + 8, t.outOffset, false);
-      outView.setUint32(dir + 12, t.origLength, false);
+      outView.setUint32(dir, t.tag, false); outView.setUint32(dir + 4, t.checksum, false);
+      outView.setUint32(dir + 8, t.outOffset, false); outView.setUint32(dir + 12, t.origLength, false);
       out.set(data.subarray(0, t.origLength), t.outOffset);
     });
     return out.buffer;
   }
 
-  /* ============================================================
-     OPENTYPE 'name' TABLE READER
-     ============================================================ */
   function readFontNames(buffer) {
     const res = { display: null, family: null, style: null, postscript: null, version: null };
     try {
       const view = new DataView(buffer);
       const numTables = view.getUint16(4, false);
       let off = 0;
-      for (let i = 0; i < numTables; i++) {
-        if (view.getUint32(12 + i * 16, false) === 0x6E616D65) { off = view.getUint32(12 + i * 16 + 8, false); break; }
-      }
+      for (let i = 0; i < numTables; i++) { if (view.getUint32(12 + i * 16, false) === 0x6E616D65) { off = view.getUint32(12 + i * 16 + 8, false); break; } }
       if (!off) return res;
 
       const count = view.getUint16(off + 2, false);
@@ -882,589 +824,127 @@
       const rec = {};
       for (let i = 0; i < count; i++) {
         const r = off + 6 + i * 12;
-        const platformId = view.getUint16(r, false);
-        const languageId = view.getUint16(r + 4, false);
-        const nameId = view.getUint16(r + 6, false);
-        const length = view.getUint16(r + 8, false);
+        const platformId = view.getUint16(r, false); const languageId = view.getUint16(r + 4, false);
+        const nameId = view.getUint16(r + 6, false); const length = view.getUint16(r + 8, false);
         const start = strBase + view.getUint16(r + 10, false);
         if (start + length > buffer.byteLength) continue;
 
         let str = '';
-        if (platformId === 0 || platformId === 3) {
-          for (let b = 0; b + 1 < length; b += 2) str += String.fromCharCode(view.getUint16(start + b, false));
-        } else if (platformId === 1) {
-          for (let b = 0; b < length; b++) str += String.fromCharCode(view.getUint8(start + b));
-        }
+        if (platformId === 0 || platformId === 3) { for (let b = 0; b + 1 < length; b += 2) str += String.fromCharCode(view.getUint16(start + b, false)); }
+        else if (platformId === 1) { for (let b = 0; b < length; b++) str += String.fromCharCode(view.getUint8(start + b)); }
         str = str.replace(/\u0000/g, '').trim();
         if (!str) continue;
-        // prefer English (Windows 0x409 / Mac 0) entries
         const english = (platformId === 3 && languageId === 0x409) || (platformId === 1 && languageId === 0) || platformId === 0;
         if (!rec[nameId] || (english && !rec[nameId].en)) rec[nameId] = { v: str, en: english };
       }
       const g = id => rec[id] ? rec[id].v : null;
-
-      res.family = g(16) || g(1);
-      res.style = g(17) || g(2);
-      res.postscript = g(6);
-      res.version = g(5);
-
+      res.family = g(16) || g(1); res.style = g(17) || g(2); res.postscript = g(6); res.version = g(5);
       if (g(16) && g(17)) res.display = g(16) + ' ' + g(17);
       else if (g(4)) res.display = g(4);
       else if (g(1) && g(2) && g(2).toLowerCase() !== 'regular') res.display = g(1) + ' ' + g(2);
       else if (g(1)) res.display = g(1);
       else if (g(6)) res.display = g(6).replace(/-/g, ' ');
-    } catch (e) { /* ignore */ }
+    } catch (e) { }
     return res;
   }
 
-  /* ============================================================
-     CORE: decode one buffer into a font entry
-     ============================================================ */
   async function processFontBuffer(buffer, origName, source) {
     const fmt = sniffFontFormat(buffer);
     try {
       let out;
       if (fmt === 'woff2') {
         await ensureWoff2Ready();
-        if (typeof Module === 'undefined' || !Module.decompress) throw new Error('The WOFF2 decoder did not load. Check your connection and reload the page.');
+        if (typeof Module === 'undefined' || !Module.decompress) throw new Error('WOFF2 decoder missing.');
         const raw = Module.decompress(new Uint8Array(buffer));
-        if (!raw || raw === false) throw new Error('This WOFF2 file could not be decompressed.');
+        if (!raw || raw === false) throw new Error('Decompression failed.');
         out = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
-      } else if (fmt === 'woff') {
-        out = convertWoffToTtf(buffer);
-      } else if (fmt === 'ttf' || fmt === 'otf') {
-        out = buffer.slice(0);
-      } else if (fmt === 'html') {
-        throw new Error('This file is a web page, not a font. The website probably blocked the download.');
-      } else if (fmt === 'collection') {
-        throw new Error('Font collections (.ttc) are not supported yet.');
-      } else {
-        throw new Error('This file does not look like a font.');
-      }
+      } else if (fmt === 'woff') { out = convertWoffToTtf(buffer); }
+      else if (fmt === 'ttf' || fmt === 'otf') { out = buffer.slice(0); }
+      else if (fmt === 'html') { throw new Error('This file is a web page, not a font.'); }
+      else { throw new Error('This file does not look like a font.'); }
 
       const isOtf = new DataView(out).getUint32(0, false) === 0x4F54544F;
       const outExt = isOtf ? 'otf' : 'ttf';
       const names = readFontNames(out);
       const display = (names.display || baseName(origName) || 'Untitled Font').trim();
-      const clean = display.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim() || 'font';
-
-      let fileName = clean + '.' + outExt, n = 2;
-      while (state.used.has(fileName.toLowerCase())) fileName = clean + ' (' + (n++) + ').' + outExt;
-      state.used.add(fileName.toLowerCase());
-
-      const id = ++state.seq;
-      const entry = {
-        id, name: display, family: names.family, style: names.style, version: names.version,
-        fileName, outExt, outSize: out.byteLength,
-        origName, origFormat: FORMAT_LABEL[fmt] || fmt.toUpperCase(), origSize: buffer.byteLength,
-        buffer: out, source, cssFamily: '__wfh_' + id
-      };
-      state.fonts.push(entry);
-      renderCard(entry);
-      loadPreview(entry);
-      updateCounters();
+      
+      let f = state.fonts.find(x => x.name === display);
+      if (!f) {
+        f = { name: display, family: names.family || 'Unknown Family', style: names.style || 'Regular', version: names.version, formats: [], selected: true };
+        state.fonts.push(f);
+      }
+      
+      if (!f.formats.some(x => x.outExt === outExt)) {
+        const clean = display.replace(/[<>:"/\\\\|?*\x00-\x1F]/g, '_').trim() || 'font';
+        let fileName = clean + '.' + outExt, n = 2;
+        while (state.used.has(fileName.toLowerCase())) fileName = clean + ' (' + (n++) + ').' + outExt;
+        state.used.add(fileName.toLowerCase());
+        
+        const id = ++state.seq;
+        const fmtObj = { id, outExt, fileName, outSize: out.byteLength, origName, origFormat: FORMAT_LABEL[fmt]||fmt.toUpperCase(), origSize: buffer.byteLength, buffer: out, source, cssFamily: '__wfh_' + id, face: null };
+        f.formats.push(fmtObj);
+        
+        try {
+          const face = new FontFace(fmtObj.cssFamily, fmtObj.buffer.slice(0));
+          fmtObj.face = face; document.fonts.add(face);
+          face.load().catch(()=>{});
+        } catch(e) {}
+      }
+      
+      renderApp();
       return true;
     } catch (err) {
-      renderErrorCard(origName, err.message || String(err), source);
+      state.errors.push({ origName, message: err.message || String(err), source });
+      renderApp();
       return false;
     }
   }
 
-  function loadPreview(entry) {
-    try {
-      const face = new FontFace(entry.cssFamily, entry.buffer.slice(0));
-      entry.face = face;
-      document.fonts.add(face);
-      face.load().catch(() => {
-        const card = document.querySelector('[data-id="' + entry.id + '"]');
-        if (card) card.classList.add('preview-failed');
-      });
-    } catch (e) {
-      const card = document.querySelector('[data-id="' + entry.id + '"]');
-      if (card) card.classList.add('preview-failed');
-    }
-  }
 
   /* ============================================================
-     RENDERING
+     RENDER
      ============================================================ */
-  function renderCard(f) {
-    const outLabel = f.outExt === 'otf' ? 'OpenType Font (.OTF)' : 'TrueType Font (.TTF)';
-    const el = document.createElement('article');
-    el.className = 'card';
-    el.dataset.id = f.id;
-    el.dataset.search = (f.name + ' ' + f.origName + ' ' + (f.family || '')).toLowerCase();
-    const no = pad2(grid.querySelectorAll('.card').length + 1);
+  function renderApp() {
+    grid.innerHTML = '';
+    const hasItems = state.fonts.length > 0 || state.errors.length > 0;
+    emptyEl.style.display = hasItems ? 'none' : '';
+    if (!hasItems) { updateCounters(); return; }
 
-    el.innerHTML = `
-      <div class="card-head">
-        <div class="card-title">
-          <div class="card-kicker">
-            <span class="card-no">No. ${no}</span>
-            <span class="tag ${f.outExt}">${f.outExt === 'otf' ? 'OpenType' : 'TrueType'}</span>
-          </div>
-          <h3 class="card-name">${esc(f.name)}</h3>
-        </div>
-        <button class="btn btn-blue btn-sm js-dl" data-tip="Save this font as a .${f.outExt.toUpperCase()} file you can double-click to install" data-tip-pos="left">
-          <svg width="14" height="14"><use href="#i-download"/></svg> .${f.outExt.toUpperCase()}
-        </button>
-      </div>
-
-      <div class="tester-wrap">
-        <span class="tester-label" data-tip="Click the sample text and type anything to see it in this font" data-tip-pos="left">Type tester</span>
-        <div class="tester js-tester" contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true"
-             aria-label="Sample text in ${esc(f.name)}" style="font-family:'${f.cssFamily}', 'Adobe Blank', serif">${esc(SAMPLE)}</div>
-        <p class="tester-fail">Your browser couldn't preview this font. The file may still install fine.</p>
-      </div>
-
-      <div class="card-controls">
-        <label class="size-ctl" data-tip="Drag to make the sample text bigger or smaller" data-tip-pos="right">
-          Size
-          <input type="range" class="js-size" min="12" max="120" value="40" aria-label="Preview size">
-          <output class="js-size-out">40px</output>
-        </label>
-        <button class="link-btn js-reset" data-tip="Bring back the original sample sentence">
-          <svg width="13" height="13"><use href="#i-reset"/></svg> Reset
-        </button>
-        <button class="link-btn js-toggle" aria-expanded="false" aria-controls="drawer-${f.id}"
-                data-tip="Show the original file this font came from and what it was converted into" data-tip-pos="left">
-          File Details <svg width="13" height="13"><use href="#i-chevron"/></svg>
-        </button>
-      </div>
-
-      <div class="drawer" id="drawer-${f.id}" hidden>
-        <div class="details">
-          <div>
-            <h5 class="caption white">Original</h5>
-            <dl>
-              <dt>File</dt><dd>${esc(f.origName)}</dd>
-              <dt>Format</dt><dd>${esc(f.origFormat)}</dd>
-              <dt>Size</dt><dd>${fmtBytes(f.origSize)}</dd>
-            </dl>
-          </div>
-          <div>
-            <h5 class="caption">Converted</h5>
-            <dl>
-              <dt>File</dt><dd>${esc(f.fileName)}</dd>
-              <dt>Format</dt><dd>${outLabel}</dd>
-              <dt>Size</dt><dd>${fmtBytes(f.outSize)}</dd>
-              ${f.family ? `<dt>Family</dt><dd>${esc(f.family)}</dd>` : ''}
-              ${f.style ? `<dt>Style</dt><dd>${esc(f.style)}</dd>` : ''}
-            </dl>
-          </div>
-          <div class="src"><b>Source:</b> ${esc(f.source)}</div>
-        </div>
-      </div>`;
-
-    // Download single
-    el.querySelector('.js-dl').addEventListener('click', () => {
-      triggerDownload(new Blob([f.buffer], { type: f.outExt === 'otf' ? 'font/otf' : 'font/ttf' }), f.fileName);
-    });
-
-    // Size slider
-    const tester = el.querySelector('.js-tester');
-    const out = el.querySelector('.js-size-out');
-    el.querySelector('.js-size').addEventListener('input', e => {
-      tester.style.setProperty('--fs', e.target.value + 'px');
-      out.textContent = e.target.value + 'px';
-    });
-
-    // Reset text
-    el.querySelector('.js-reset').addEventListener('click', () => { tester.textContent = SAMPLE; });
-
-    // Paste as plain text only
-    tester.addEventListener('paste', e => {
-      e.preventDefault();
-      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-      document.execCommand('insertText', false, text);
-    });
-
-    // Drawer
-    const toggle = el.querySelector('.js-toggle');
-    const drawer = el.querySelector('.drawer');
-    toggle.addEventListener('click', () => toggleDrawer(toggle, drawer));
-
-    insertCard(el, f.family || 'Other Fonts');
-  }
-
-  function renderErrorCard(origName, message, source) {
-    const el = document.createElement('article');
-    el.className = 'card is-error';
-    el.dataset.search = String(origName).toLowerCase();
-    el.innerHTML = `
-      <div class="card-head">
-        <div class="card-title">
-          <div class="card-kicker"><span class="stamp">Couldn't convert</span></div>
-          <h3 class="card-name">${esc(baseName(origName))}</h3>
-        </div>
-      </div>
-      <p class="err-msg">${esc(message)}<br><span style="color:var(--muted);font-size:12px">${esc(origName)}${source ? ' &middot; ' + esc(source) : ''}</span></p>`;
-    insertCard(el, '__error__');
-  }
-
-  function insertCard(el, family) {
-    emptyEl.style.display = 'none';
-    if (state.query && !el.dataset.search.includes(state.query)) el.classList.add('is-hidden');
+    const activeList = state.fonts.filter(f => !state.query || (f.name + ' ' + f.family).toLowerCase().includes(state.query));
+    const errorList = state.errors.filter(e => !state.query || String(e.origName).toLowerCase().includes(state.query));
     
-    const isError = family === '__error__';
-    const groupId = isError ? 'grp-error' : 'grp-' + family.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    let groupEl = document.getElementById(groupId);
-    
-    if (!groupEl) {
-      groupEl = document.createElement('div');
-      groupEl.id = groupId;
-      groupEl.className = 'family-group' + (isError ? ' error-group' : '');
-      const title = isError ? 'Could not convert' : esc(family);
+    if (state.groupByFamily) {
+      const families = {};
+      activeList.forEach(f => { const fam = f.family || 'Unknown Family'; if (!families[fam]) families[fam] = []; families[fam].push(f); });
       
-      let dlBtn = '';
-      if (!isError) {
-         dlBtn = `<button class="btn btn-sm btn-yellow js-dl-family" data-family="${esc(family)}" data-tip="Download all ${esc(family)} fonts as a ZIP" data-tip-pos="left"><svg width="14" height="14"><use href="#i-download"/></svg> Download Family ZIP</button>`;
-      }
-      
-      groupEl.innerHTML = `
-        <div class="family-head">
-           <h3>${title}</h3>
-           ${dlBtn}
-        </div>
-        <div class="family-grid"></div>
-      `;
-      
-      if (!isError) {
-         groupEl.querySelector('.js-dl-family').addEventListener('click', async (e) => {
-            const fam = e.currentTarget.dataset.family;
-            const fonts = state.fonts.filter(f => (f.family || 'Other Fonts') === fam);
-            if (!fonts.length) return;
-            const btn = e.currentTarget;
-            btn.disabled = true;
-            try {
-              const zip = new JSZip();
-              fonts.forEach(f => zip.file(f.fileName, f.buffer));
-              const blob = await zip.generateAsync({ type: 'blob' });
-              triggerDownload(blob, fam.replace(/[^a-z0-9]/gi, '_') + '_family.zip');
-            } catch(err) {}
-            btn.disabled = false;
-         });
-      }
-      
-      if (isError) {
-         grid.appendChild(groupEl);
-      } else {
-         const errGrp = document.getElementById('grp-error');
-         if (errGrp) grid.insertBefore(groupEl, errGrp);
-         else grid.appendChild(groupEl);
-      }
-    }
-    
-    groupEl.querySelector('.family-grid').appendChild(el);
-    updateResultMeta();
-    $('#clear-btn').disabled = false;
-  }
+      for (const [fam, list] of Object.entries(families)) {
+        if (!state.activeVariant[fam] || !list.some(x => x.name === state.activeVariant[fam])) {
+           state.activeVariant[fam] = list[0].name;
+        }
+        const activeF = list.find(x => x.name === state.activeVariant[fam]);
+        
+        const grp = document.createElement('div');
+        grp.className = 'family-group';
+        grp.innerHTML = \`<div class="family-head"><h3>\${esc(fam)}</h3></div><div class="family-grid"></div>\
 
-  function toggleDrawer(btn, drawer) {
-    const open = btn.getAttribute('aria-expanded') === 'true';
-    btn.setAttribute('aria-expanded', String(!open));
-    drawer.classList.remove('opening', 'closing');
-    if (!open) {
-      drawer.hidden = false;
-      void drawer.offsetWidth;            // restart animation
-      drawer.classList.add('opening');
-    } else {
-      drawer.classList.add('closing');
-      drawer.addEventListener('animationend', function h() {
-        drawer.removeEventListener('animationend', h);
-        if (btn.getAttribute('aria-expanded') === 'false') { drawer.hidden = true; drawer.classList.remove('closing'); }
-      });
-    }
-  }
-
+  /* ============================================================
+     EVENTS & CONTROLS
+     ============================================================ */
   function updateCounters() {
-    const n = state.fonts.length;
+    const selected = state.fonts.filter(f => f.selected);
     const c = $('#font-count');
-    c.textContent = pad2(n);
+    c.textContent = pad2(selected.length);
     c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump');
-    $('#zip-btn').disabled = n === 0;
-  }
-
-  function updateResultMeta() {
-    const cards = grid.querySelectorAll('.card');
-    const visible = grid.querySelectorAll('.card:not(.is-hidden)');
+    
+    $('#zip-btn').disabled = selected.length === 0;
+    const zipLbl = $('#zip-btn .btn-label');
+    if (zipLbl) zipLbl.textContent = selected.length ? \`Download Selected (\${selected.length}) as ZIP\` : 'Download Selected as ZIP';
+    
     const meta = $('#result-meta');
-    if (!cards.length) { meta.textContent = ''; return; }
-    meta.textContent = state.query ? `Showing ${visible.length} of ${cards.length}` : `${cards.length} item${cards.length === 1 ? '' : 's'}`;
+    const total = state.fonts.length;
+    if (total === 0) { meta.textContent = ''; return; }
+    meta.textContent = state.query ? \`Showing matches (\${selected.length} selected)\` : \`\${total} font\${total === 1 ? '' : 's'} (\${selected.length} selected)\
 
-    let none = $('#no-match');
-    if (state.query && cards.length && !visible.length) {
-      if (!none) {
-        none = document.createElement('div');
-        none.id = 'no-match'; none.className = 'empty dots-ink';
-        grid.appendChild(none);
-      }
-      none.innerHTML = `<h3>No matches</h3><p>No font names contain "${esc(state.query)}".</p>`;
-    } else if (none) none.remove();
-  }
-
-  /* ============================================================
-     SEARCH
-     ============================================================ */
-  const searchInput = $('#search');
-  searchInput.addEventListener('input', () => {
-    state.query = searchInput.value.trim().toLowerCase();
-    $('#search-field').classList.toggle('has-value', !!searchInput.value);
-    
-    grid.querySelectorAll('.card').forEach(c => {
-      c.classList.toggle('is-hidden', !!state.query && !c.dataset.search.includes(state.query));
-    });
-    
-    grid.querySelectorAll('.family-group').forEach(grp => {
-      const allHidden = Array.from(grp.querySelectorAll('.card')).every(c => c.classList.contains('is-hidden'));
-      grp.classList.toggle('is-hidden', allHidden);
-    });
-    
-    updateResultMeta();
-  });
-  $('#clear-search').addEventListener('click', () => {
-    searchInput.value = ''; searchInput.dispatchEvent(new Event('input')); searchInput.focus();
-  });
-
-  /* ============================================================
-     CLEAR / ZIP
-     ============================================================ */
-  $('#clear-btn').addEventListener('click', () => {
-    state.fonts.forEach(f => { try { if (f.face) document.fonts.delete(f.face); } catch (e) {} });
-    state.fonts = []; state.used.clear();
-    grid.querySelectorAll('.family-group, #no-match').forEach(c => c.remove());
-    emptyEl.style.display = '';
-    updateCounters(); updateResultMeta(); clearStatus();
-    $('#clear-btn').disabled = true;
-  });
-
-  $('#zip-btn').addEventListener('click', async () => {
-    if (!state.fonts.length) return;
-    const btn = $('#zip-btn');
-    btn.disabled = true;
-    try {
-      const zip = new JSZip();
-      state.fonts.forEach(f => zip.file(f.fileName, f.buffer));
-      const blob = await zip.generateAsync({ type: 'blob' });
-      triggerDownload(blob, 'fonts_' + new Date().toISOString().slice(0, 10) + '.zip');
-      setStatus('success', `<b>ZIP downloaded.</b>${state.fonts.length} font${state.fonts.length === 1 ? '' : 's'} packed and ready to install.`);
-    } catch (e) {
-      setStatus('error', '<b>Could not build the ZIP.</b>' + esc(e.message));
-    } finally {
-      btn.disabled = state.fonts.length === 0;
-    }
-  });
-
-  /* ============================================================
-     LOCAL FILES (drop zone / picker)
-     ============================================================ */
-  const dropZone = $('#drop-zone');
-  const filePicker = $('#file-picker');
-
-  dropZone.addEventListener('click', () => filePicker.click());
-  dropZone.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filePicker.click(); }
-  });
-  ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('is-over'); }));
-  ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('is-over'); }));
-  dropZone.addEventListener('drop', e => { if (e.dataTransfer.files.length) handleLocalFiles(e.dataTransfer.files); });
-  filePicker.addEventListener('change', e => { if (e.target.files.length) handleLocalFiles(e.target.files); filePicker.value = ''; });
-
-  // Stop the browser from opening files dropped outside the zone
-  window.addEventListener('dragover', e => e.preventDefault());
-  window.addEventListener('drop', e => e.preventDefault());
-
-  const FONT_EXT = /\.(woff2?|ttf|otf)$/i;
-  function looksLikeFont(buf) { return ['woff2', 'woff', 'ttf', 'otf'].includes(sniffFontFormat(buf)); }
-
-  async function handleLocalFiles(files) {
-    setStatus('info', '<b>Reading your files...</b>', true);
-    await ensureWoff2Ready();
-
-    const queue = [];
-    for (const file of files) {
-      if (/\.zip$/i.test(file.name)) {
-        try {
-          const zip = await JSZip.loadAsync(file);
-          for (const path of Object.keys(zip.files)) {
-            const entry = zip.files[path];
-            if (entry.dir || /(^|\/)(__MACOSX|\.)/.test(path)) continue;
-            const buf = await entry.async('arraybuffer');
-            if (FONT_EXT.test(path) || looksLikeFont(buf)) queue.push({ name: path.split('/').pop(), buffer: buf, source: file.name });
-          }
-        } catch (e) {
-          renderErrorCard(file.name, 'This ZIP file could not be opened.', 'Your computer');
-        }
-      } else {
-        const buf = await file.arrayBuffer();
-        if (FONT_EXT.test(file.name) || looksLikeFont(buf)) queue.push({ name: file.name, buffer: buf, source: 'Your computer' });
-        else renderErrorCard(file.name, 'This file does not look like a font.', 'Your computer');
-      }
-    }
-
-    if (!queue.length) { setStatus('error', '<b>No font files found.</b>Drop .woff, .woff2, .ttf, .otf or a .zip containing them.'); return; }
-
-    let ok = 0;
-    for (let i = 0; i < queue.length; i++) {
-      setStatus('info', `<b>Converting ${i + 1} of ${queue.length}</b>${esc(queue[i].name)}`, true);
-      if (await processFontBuffer(queue[i].buffer, queue[i].name, queue[i].source)) ok++;
-    }
-    finishStatus(ok, queue.length);
-  }
-
-  function finishStatus(ok, total) {
-    if (ok === total) setStatus('success', `<b>Done. ${ok} font${ok === 1 ? '' : 's'} converted.</b>Try them in the type testers below, then download.`);
-    else if (ok > 0) setStatus('info', `<b>${ok} of ${total} fonts converted.</b>Some files couldn't be read; see the red cards below.`);
-    else setStatus('error', `<b>None of the files could be converted.</b>See the red cards below for the reason.`);
-  }
-
-  /* ============================================================
-     URL SCRAPING
-     ============================================================ */
-  const proxyInput = $('#custom-proxy');
-  proxyInput.value = localStorage.getItem('wfh_proxy') || '';
-  proxyInput.addEventListener('change', () => localStorage.setItem('wfh_proxy', proxyInput.value.trim()));
-
-  function fetchUrl(u) {
-    const p = proxyInput.value.trim();
-    return p ? p + encodeURIComponent(u) : u;
-  }
-
-  function findFontStrings(text, baseUrl, set) {
-    const re = /(?:url\(\s*['"]?|['"])([^'")\s]+\.(?:woff2?|ttf|otf)(?:\?[^'")\s]*)?|data:(?:font|application\/[a-z0-9-]*font[a-z0-9-]*)[^'")]*)/gi;
-    let m;
-    while ((m = re.exec(text)) !== null) {
-      const raw = m[1].trim();
-      if (raw.startsWith('data:')) { set.add(raw); continue; }
-      try { set.add(new URL(raw, baseUrl).href); } catch (e) {}
-    }
-  }
-
-  function decodeDataUri(uri) {
-    const m = uri.match(/^data:([^;,]+)(?:;[^,]*)?;base64,(.+)$/);
-    if (!m) return null;
-    const bin = atob(m[2]);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    return arr.buffer;
-  }
-
-  function showCorsHelp() {
-    setStatus('error', `
-      <b>This website won't let other pages read it.</b>
-      Browsers block one site from reading another unless the second site allows it. Three ways around it:
-      <ol>
-        <li><strong>Use the Font Grabber bookmark</strong> (Option C). It runs on the website itself, so nothing is blocked.</li>
-        <li><strong>Turn on a CORS extension</strong> such as "Allow CORS" or "CORS Unblock", then try again.</li>
-        <li><strong>Add your own CORS proxy</strong> under Advanced, below the address bar.</li>
-      </ol>`);
-  }
-
-  $('#url-form').addEventListener('submit', e => { e.preventDefault(); startScrape(); });
-
-  async function startScrape() {
-    const input = $('#target-url');
-    const btn = $('#scrape-btn');
-    let target = input.value.trim();
-    if (!target) { input.focus(); return; }
-    if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
-    try { new URL(target); } catch (e) { setStatus('error', '<b>That address doesn\'t look right.</b>Try something like https://example.com'); return; }
-
-    btn.disabled = true;
-    try {
-      await ensureWoff2Ready();
-
-      // Direct font link
-      if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(target)) {
-        setStatus('info', '<b>Downloading font file...</b>' + esc(target), true);
-        const res = await fetch(fetchUrl(target));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const buf = await res.arrayBuffer();
-        const name = target.split('#')[0].split('?')[0].split('/').pop();
-        const ok = await processFontBuffer(buf, name, target);
-        finishStatus(ok ? 1 : 0, 1);
-        return;
-      }
-
-      setStatus('info', '<b>Reading the page...</b>' + esc(target), true);
-      const res = await fetch(fetchUrl(target));
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const html = await res.text();
-
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      const fontUrls = new Set();
-      const cssUrls = new Set();
-
-      findFontStrings(html, target, fontUrls);
-      doc.querySelectorAll('style').forEach(s => findFontStrings(s.textContent, target, fontUrls));
-      doc.querySelectorAll('link[href]').forEach(el => {
-        try {
-          const abs = new URL(el.getAttribute('href'), target).href;
-          const rel = (el.getAttribute('rel') || '').toLowerCase();
-          const as = (el.getAttribute('as') || '').toLowerCase();
-          if (/\.(woff2?|ttf|otf)(\?.*)?$/i.test(abs)) fontUrls.add(abs);
-          else if (rel.includes('stylesheet') || as === 'style') cssUrls.add(abs);
-        } catch (e) {}
-      });
-
-      // Stylesheets (and one level of @import)
-      let i = 0;
-      for (const cssUrl of Array.from(cssUrls)) {
-        setStatus('info', `<b>Scanning stylesheet ${++i} of ${cssUrls.size}</b>${esc(cssUrl)}`, true);
-        try {
-          const r = await fetch(fetchUrl(cssUrl));
-          if (!r.ok) continue;
-          const css = await r.text();
-          findFontStrings(css, cssUrl, fontUrls);
-          for (const imp of css.matchAll(/@import\s+(?:url\()?\s*['"]?([^'";)\s]+)['"]?\s*\)?/g)) {
-            try {
-              const sub = new URL(imp[1], cssUrl).href;
-              const r2 = await fetch(fetchUrl(sub));
-              if (r2.ok) findFontStrings(await r2.text(), sub, fontUrls);
-            } catch (e) {}
-          }
-        } catch (e) {}
-      }
-
-      if (!fontUrls.size) {
-        setStatus('error', '<b>No fonts found in this page\'s code.</b>Some sites load fonts with scripts after the page opens. The Font Grabber bookmark (Option C) catches those.');
-        return;
-      }
-
-      const list = Array.from(fontUrls);
-      let ok = 0;
-      for (let k = 0; k < list.length; k++) {
-        const u = list[k];
-        setStatus('info', `<b>Converting font ${k + 1} of ${list.length}</b>${esc(u.startsWith('data:') ? 'Embedded font' : u)}`, true);
-        try {
-          if (u.startsWith('data:')) {
-            const buf = decodeDataUri(u);
-            if (buf && await processFontBuffer(buf, 'embedded-font-' + (k + 1), 'Embedded in page CSS')) ok++;
-            continue;
-          }
-          const r = await fetch(fetchUrl(u));
-          if (!r.ok) { renderErrorCard(u.split('?')[0].split('/').pop(), 'The website refused to send this file (HTTP ' + r.status + ').', u); continue; }
-          const buf = await r.arrayBuffer();
-          const name = u.split('#')[0].split('?')[0].split('/').pop();
-          if (await processFontBuffer(buf, name, u)) ok++;
-        } catch (e) {
-          renderErrorCard(u.split('?')[0].split('/').pop(), 'Blocked by the browser (CORS). Try the Font Grabber bookmark.', u);
-        }
-      }
-      finishStatus(ok, list.length);
-    } catch (err) {
-      showCorsHelp();
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  /* ============================================================
-     FONT GRABBER BOOKMARKLET
-     Written as a normal function, serialised with toString(),
-     then URL-encoded so no characters break the javascript: URL.
-     Self-contained: no external scripts, builds the ZIP itself.
-     ============================================================ */
   async function fontGrabber() {
     var TID = '__wfh_grabber__';
     function toast(html, tone) {
@@ -1512,20 +992,14 @@
         while ((m = re.exec(text)) !== null) add(m[1], base);
       }
 
-      // 1. Force-load every declared @font-face (wakes up hidden weights)
       if (document.fonts) {
         var loads = [];
         document.fonts.forEach(function (f) { loads.push(f.load().catch(function () {})); });
         await Promise.race([Promise.all(loads), new Promise(function (r) { setTimeout(r, 5000); })]);
       }
-
-      // 2. Inline <style>
       document.querySelectorAll('style').forEach(function (s) { scan(s.textContent, location.href); });
-
-      // 3. <link> preloads / direct font links
       document.querySelectorAll('link[href]').forEach(function (l) { if (FONT_RE.test(l.href)) urls.add(l.href); });
 
-      // 4. Stylesheets (walk rules; fetch text when cross-origin rules are locked)
       var pending = [];
       function walk(sheet) {
         var base = sheet.href || location.href;
@@ -1544,13 +1018,10 @@
       for (var s = 0; s < document.styleSheets.length; s++) walk(document.styleSheets[s]);
       await Promise.all(pending);
 
-      // 5. Everything the browser actually downloaded
       performance.getEntriesByType('resource').forEach(function (r) { if (FONT_RE.test(r.name)) urls.add(r.name); });
-
       var total = urls.size + items.length;
       if (!total) { toast('No fonts found on this page. Try scrolling, wait a moment, then click the bookmark again.', 'error'); closeLater(7000); return; }
 
-      // 6. Download
       var done = 0, failed = 0;
       for (var u of urls) {
         toast('Downloading font ' + (++done) + ' of ' + urls.size + '...');
@@ -1564,7 +1035,6 @@
       }
       if (!items.length) { toast('The website blocked every font download.', 'error'); closeLater(7000); return; }
 
-      // 7. Build an uncompressed ZIP (no external libraries)
       var table = [];
       for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); table[n] = c >>> 0; }
       function crc32(b) { var x = -1; for (var i = 0; i < b.length; i++) x = (x >>> 8) ^ table[(x ^ b[i]) & 255]; return (x ^ -1) >>> 0; }
@@ -1599,29 +1069,22 @@
       a.href = URL.createObjectURL(blob);
       a.download = 'fonts_' + (location.hostname.replace(/[^a-z0-9]+/gi, '_') || 'page') + '.zip';
       document.body.appendChild(a); a.click(); a.remove();
-
-      toast('<b>' + items.length + ' font' + (items.length === 1 ? '' : 's') + ' downloaded.</b>' +
-            (failed ? ' (' + failed + ' blocked)' : '') +
-            '<br><span style="color:#6b675d;font-size:12.5px">Drop the ZIP into Font Harvester to convert and rename them.</span>', 'ok');
+      toast('<b>' + items.length + ' font(s) downloaded.</b>', 'ok');
       closeLater(9000);
-    } catch (err) {
-      toast('Something went wrong: ' + (err && err.message ? err.message : err), 'error');
-      closeLater(8000);
-    }
+    } catch (err) { toast('Error: ' + err, 'error'); closeLater(8000); }
   }
 
   (function setupGrabber() {
-    const link = $('#grabber-link');
-    link.href = 'javascript:' + encodeURIComponent('(' + fontGrabber.toString() + ')();void 0');
-    link.addEventListener('click', e => {
-      e.preventDefault();
-      setStatus('info', '<b>Drag the Font Grabber button to your bookmarks bar.</b>Then open any website and click the bookmark there. (Show the bar with Ctrl+Shift+B, or Cmd+Shift+B on Mac.)');
-    });
+    const link = document.getElementById('grabber-link');
+    if (link) {
+      link.href = 'javascript:' + encodeURIComponent('(' + fontGrabber.toString() + ')();void 0');
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        setStatus('info', '<b>Drag the Font Grabber button to your bookmarks bar.</b>Then open any website and click the bookmark there. (Show the bar with Ctrl+Shift+B, or Cmd+Shift+B on Mac.)');
+      });
+    }
   })();
 
-  // Warm up the WOFF2 decoder in the background
-  ensureWoff2Ready();
-  </script>
+</script>
 </body>
 </html>
-
