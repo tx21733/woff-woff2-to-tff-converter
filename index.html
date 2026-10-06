@@ -339,20 +339,140 @@
     .search.has-value .clear-search { display: block; }
     .result-meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-    .family-group { margin-bottom: 36px; display: flex; flex-direction: column; gap: 16px; animation: rise 0.45s var(--spring); }
-    .family-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 2px solid var(--ink); }
+    #grid {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
+      align-items: start;
+    }
+
+    .family-group {
+      margin-bottom: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      animation: rise 0.45s var(--spring);
+      min-width: 0;
+    }
+    .family-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .family-head-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
     .family-head h3 { font: 900 20px/1 var(--display); text-transform: uppercase; letter-spacing: -0.2px; margin: 0; }
-    .family-group.error-group { margin-top: 48px; border-top: 2px dashed var(--red); padding-top: 24px; }
+    .family-badge {
+      font: 700 11px/1 var(--sans);
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      padding: 3px 6px;
+      border: 1.5px solid var(--ink);
+      background: var(--yellow-tint);
+    }
+    .family-group.error-group {
+      grid-column: 1 / -1;
+      margin-top: 24px;
+      border-top: 2px dashed var(--red);
+      padding-top: 24px;
+    }
     .family-group.error-group .family-head { border-bottom-color: var(--red); color: var(--red); border-top: 0; padding-top: 0; }
     .family-group.is-hidden { display: none; }
 
     .family-grid {
-      display: grid; gap: 22px;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
     }
 
-    #grid { display: flex; flex-direction: column; }
-    
+    .select-all-pill {
+      font: 700 12px/1 var(--sans);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      padding: 5px 9px;
+      border: 1.5px solid var(--ink);
+      background: var(--white);
+      box-shadow: 2px 2px 0 var(--ink);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      white-space: nowrap;
+    }
+    .select-all-pill:hover {
+      background: var(--paper);
+      transform: translate(-1px, -1px);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+    .select-all-pill:active {
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0 var(--ink);
+    }
+    .select-all-pill input {
+      margin: 0;
+      width: 14px;
+      height: 14px;
+      accent-color: var(--ink);
+      cursor: pointer;
+    }
+
+    .chip {
+      font: 700 11px/1 var(--sans);
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      padding: 6px 11px;
+      border: 1.5px solid var(--ink);
+      background: var(--white);
+      color: var(--ink);
+      cursor: pointer;
+      border-radius: 0;
+      box-shadow: 2px 2px 0 var(--ink);
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      user-select: none;
+    }
+    .chip:hover {
+      background: var(--paper-deep);
+      transform: translate(-1px, -1px);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+    .chip:active {
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0 var(--ink);
+    }
+    .chip.active {
+      background: var(--ink) !important;
+      color: var(--white) !important;
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0 var(--ink);
+    }
+
+    .tester {
+      --fs: 40px;
+      font-size: var(--fs);
+      line-height: 1.15;
+      padding: 30px 18px 22px;
+      min-height: 130px;
+      max-height: 280px;
+      overflow: auto;
+      outline: none;
+      overflow-wrap: anywhere;
+      color: var(--ink);
+      cursor: text;
+      transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .tester.tester-morph {
+      opacity: 0.65;
+    }
+
     .empty {
       grid-column: 1 / -1;
       border: 2px dashed var(--ink); border-radius: var(--radius);
@@ -655,7 +775,7 @@
         </div>
         <div class="results-tools">
           <label class="toggle-switch">
-             <input type="checkbox" id="group-toggle">
+             <input type="checkbox" id="group-toggle" checked>
              <span>Group by Family</span>
           </label>
           <button class="btn btn-sm btn-ghost" id="select-all-btn">Select All / None</button>
@@ -703,7 +823,7 @@
     used: new Set(),
     query: '',
     seq: 0,
-    groupByFamily: false,
+    groupByFamily: true,
     activeVariant: {}     // map of family -> index of currently selected font in the family
   };
   const SAMPLE = 'The quick brown fox jumps over the lazy dog';
@@ -914,76 +1034,173 @@
     
     if (state.groupByFamily) {
       const families = {};
-      activeList.forEach(f => { const fam = f.family || 'Unknown Family'; if (!families[fam]) families[fam] = []; families[fam].push(f); });
+      activeList.forEach(f => {
+        const fam = f.family || 'Unknown Family';
+        if (!families[fam]) families[fam] = [];
+        families[fam].push(f);
+      });
       
       for (const [fam, list] of Object.entries(families)) {
         if (!state.activeVariant[fam] || !list.some(x => x.name === state.activeVariant[fam])) {
-           state.activeVariant[fam] = list[0].name;
+          state.activeVariant[fam] = list[0].name;
         }
-        const activeF = list.find(x => x.name === state.activeVariant[fam]);
-        
+        let activeF = list.find(x => x.name === state.activeVariant[fam]) || list[0];
+        const allFamilySelected = list.every(f => f.selected);
+        const someFamilySelected = list.some(f => f.selected);
+
         const grp = document.createElement('div');
         grp.className = 'family-group';
-        grp.innerHTML = '<div class="family-head"><h3>' + esc(fam) + '</h3></div><div class="family-grid"></div>';
-        
-        const card = document.createElement('article');
-        card.className = 'card';
-        
-        const chipsHtml = list.map(f => '<button type="button" class="chip ' + (f.name === activeF.name ? 'active' : '') + '" data-name="' + esc(f.name) + '" style="' + (f.name === activeF.name ? 'background:var(--ink);color:var(--white)' : '') + '">' + esc(f.style) + '</button>').join(' ');
-        
-        const formatsHtml = activeF.formats.map(fmt => '<button type="button" class="btn btn-blue btn-sm js-dl" data-id="' + fmt.id + '">.<svg width="14" height="14"><use href="#i-download"/></svg> ' + fmt.outExt.toUpperCase() + '</button>').join(' ');
-        
-        card.innerHTML = `
-          <div class="card-head">
-            <div class="card-title">
-               <h3 class="card-name">${esc(fam)}</h3>
+
+        const chipsHtml = list.map(f => {
+          const isActive = f.name === activeF.name;
+          return `<button type="button" class="chip ${isActive ? 'active' : ''}" data-name="${esc(f.name)}" aria-pressed="${isActive ? 'true' : 'false'}">${esc(f.style)}</button>`;
+        }).join(' ');
+
+        function renderFormatBtns(fontObj) {
+          return fontObj.formats.map(fmt =>
+            `<button type="button" class="btn btn-blue btn-sm js-dl" data-id="${fmt.id}" data-tip="Download .${fmt.outExt.toUpperCase()} font file" data-tip-pos="top">
+              <svg width="14" height="14"><use href="#i-download"/></svg> .${fmt.outExt.toUpperCase()}
+            </button>`
+          ).join(' ');
+        }
+
+        grp.innerHTML = `
+          <div class="family-head">
+            <div class="family-head-left">
+              <h3>${esc(fam)}</h3>
+              <span class="family-badge">${list.length} ${list.length === 1 ? 'variant' : 'variants'}</span>
             </div>
+            <label class="select-all-pill" data-tip="Select or deselect all weights/styles in this family" data-tip-pos="left">
+              <input type="checkbox" class="js-select-all-family" ${allFamilySelected ? 'checked' : ''}>
+              <span>Select All Variants</span>
+            </label>
           </div>
-          <div style="padding: 12px 18px; border-bottom: 2px solid var(--ink); display: flex; gap: 8px; flex-wrap: wrap;" class="js-chips">
-             ${chipsHtml}
-          </div>
-          <div class="tester-wrap">
-            <span class="tester-label">Type tester</span>
-            <div class="tester js-tester" contenteditable="true" spellcheck="false" role="textbox" style="font-family:'${activeF.formats[0].cssFamily}', serif">${esc(SAMPLE)}</div>
-          </div>
-          <div class="card-controls" style="justify-content: space-between;">
-             <label style="display:flex;align-items:center;gap:8px;font:700 13px/1 var(--sans);cursor:pointer;"><input type="checkbox" class="js-select" ${activeF.selected ? 'checked' : ''}> Select ${esc(activeF.style)}</label>
-             <div style="display:flex;gap:8px;">${formatsHtml}</div>
+          <div class="family-grid">
+            <article class="card">
+              <div class="card-head">
+                <div class="card-title">
+                  <div class="card-kicker">
+                    <span class="tag ttf">Active Style</span>
+                    <span class="card-no js-active-style-label">${esc(activeF.style)}</span>
+                  </div>
+                  <h3 class="card-name js-active-name">${esc(activeF.name)}</h3>
+                </div>
+              </div>
+              <div style="padding: 12px 18px; border-bottom: 2px solid var(--ink); display: flex; gap: 8px; flex-wrap: wrap;" class="js-chips">
+                ${chipsHtml}
+              </div>
+              <div class="tester-wrap">
+                <span class="tester-label">Type tester</span>
+                <div class="tester js-tester" contenteditable="true" spellcheck="false" role="textbox" style="font-family:'${activeF.formats[0].cssFamily}', serif">${esc(SAMPLE)}</div>
+              </div>
+              <div class="card-controls" style="justify-content: space-between;">
+                <label style="display:flex;align-items:center;gap:8px;font:700 13px/1 var(--sans);cursor:pointer;">
+                  <input type="checkbox" class="js-select" ${activeF.selected ? 'checked' : ''}>
+                  <span class="js-select-label">Select ${esc(activeF.style)}</span>
+                </label>
+                <div class="js-formats-wrap" style="display:flex;gap:8px;">
+                  ${renderFormatBtns(activeF)}
+                </div>
+              </div>
+            </article>
           </div>
         `;
-        
-        card.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', e => {
-           state.activeVariant[fam] = e.target.dataset.name;
-           renderApp();
-        }));
-        
-        card.querySelector('.js-select').addEventListener('change', e => {
-           activeF.selected = e.target.checked;
-           updateCounters();
+
+        const card = grp.querySelector('.card');
+        const tester = card.querySelector('.js-tester');
+        const activeNameEl = card.querySelector('.js-active-name');
+        const activeStyleLabel = card.querySelector('.js-active-style-label');
+        const selectCheckbox = card.querySelector('.js-select');
+        const selectLabel = card.querySelector('.js-select-label');
+        const formatsWrap = card.querySelector('.js-formats-wrap');
+        const selectAllFamilyCheckbox = grp.querySelector('.js-select-all-family');
+        selectAllFamilyCheckbox.indeterminate = !allFamilySelected && someFamilySelected;
+
+        function attachDownloadListeners() {
+          formatsWrap.querySelectorAll('.js-dl').forEach(btn => {
+            btn.onclick = () => {
+              const fmt = activeF.formats.find(x => x.id == btn.dataset.id);
+              if (fmt) {
+                triggerDownload(new Blob([fmt.buffer], { type: 'font/' + fmt.outExt }), fmt.fileName);
+              }
+            };
+          });
+        }
+        attachDownloadListeners();
+
+        // 1. Client-side variant switching without full re-render
+        card.querySelectorAll('.chip').forEach(btn => {
+          btn.onclick = () => {
+            const targetName = btn.dataset.name;
+            if (activeF.name === targetName) return;
+            const targetF = list.find(x => x.name === targetName);
+            if (!targetF) return;
+
+            activeF = targetF;
+            state.activeVariant[fam] = targetName;
+
+            // Update chips active state
+            card.querySelectorAll('.chip').forEach(c => {
+              const isCurr = c.dataset.name === targetName;
+              c.classList.toggle('active', isCurr);
+              c.setAttribute('aria-pressed', isCurr ? 'true' : 'false');
+            });
+
+            // Localized Apple-style fade/morph transition on preview tester
+            tester.classList.add('tester-morph');
+            setTimeout(() => {
+              tester.style.fontFamily = `'${targetF.formats[0].cssFamily}', serif`;
+              activeNameEl.textContent = targetF.name;
+              activeStyleLabel.textContent = targetF.style;
+              selectCheckbox.checked = targetF.selected;
+              selectLabel.textContent = `Select ${targetF.style}`;
+              formatsWrap.innerHTML = renderFormatBtns(targetF);
+              attachDownloadListeners();
+              tester.classList.remove('tester-morph');
+            }, 75);
+          };
         });
-        
-        card.querySelectorAll('.js-dl').forEach(btn => btn.addEventListener('click', e => {
-           const fmt = activeF.formats.find(x => x.id == e.currentTarget.dataset.id);
-           triggerDownload(new Blob([fmt.buffer], { type: 'font/' + fmt.outExt }), fmt.fileName);
-        }));
-        
-        grp.querySelector('.family-grid').appendChild(card);
+
+        // 2. Individual variant selection checkbox
+        selectCheckbox.onchange = e => {
+          activeF.selected = e.target.checked;
+          const allNow = list.every(f => f.selected);
+          const someNow = list.some(f => f.selected);
+          selectAllFamilyCheckbox.checked = allNow;
+          selectAllFamilyCheckbox.indeterminate = !allNow && someNow;
+          updateCounters();
+        };
+
+        // 3. Family-level "Select All Variants"
+        selectAllFamilyCheckbox.onchange = e => {
+          const checkState = e.target.checked;
+          selectAllFamilyCheckbox.indeterminate = false;
+          list.forEach(f => { f.selected = checkState; });
+          selectCheckbox.checked = activeF.selected;
+          updateCounters();
+        };
+
         grid.appendChild(grp);
       }
     } else {
       // Individual mode
-      const fg = document.createElement('div');
-      fg.className = 'family-grid';
-      
       activeList.forEach(f => {
         const card = document.createElement('article');
         card.className = 'card';
-        const formatsHtml = f.formats.map(fmt => '<button type="button" class="btn btn-blue btn-sm js-dl" data-id="' + fmt.id + '"><svg width="14" height="14"><use href="#i-download"/></svg> .' + fmt.outExt.toUpperCase() + '</button>').join(' ');
+        const formatsHtml = f.formats.map(fmt =>
+          `<button type="button" class="btn btn-blue btn-sm js-dl" data-id="${fmt.id}">
+            <svg width="14" height="14"><use href="#i-download"/></svg> .${fmt.outExt.toUpperCase()}
+          </button>`
+        ).join(' ');
         
         card.innerHTML = `
           <div class="card-head">
             <div class="card-title">
-               <h3 class="card-name">${esc(f.name)}</h3>
+              <div class="card-kicker">
+                <span class="tag ttf">${esc(f.style)}</span>
+                <span class="card-no">${esc(f.family || 'Font')}</span>
+              </div>
+              <h3 class="card-name">${esc(f.name)}</h3>
             </div>
           </div>
           <div class="tester-wrap">
@@ -991,39 +1208,56 @@
             <div class="tester js-tester" contenteditable="true" spellcheck="false" role="textbox" style="font-family:'${f.formats[0].cssFamily}', serif">${esc(SAMPLE)}</div>
           </div>
           <div class="card-controls" style="justify-content: space-between;">
-             <label style="display:flex;align-items:center;gap:8px;font:700 13px/1 var(--sans);cursor:pointer;"><input type="checkbox" class="js-select" ${f.selected ? 'checked' : ''}> Select font</label>
-             <div style="display:flex;gap:8px;">${formatsHtml}</div>
+            <label style="display:flex;align-items:center;gap:8px;font:700 13px/1 var(--sans);cursor:pointer;">
+              <input type="checkbox" class="js-select" ${f.selected ? 'checked' : ''}> Select font
+            </label>
+            <div style="display:flex;gap:8px;">${formatsHtml}</div>
           </div>
         `;
         
-        card.querySelector('.js-select').addEventListener('change', e => { f.selected = e.target.checked; updateCounters(); });
-        card.querySelectorAll('.js-dl').forEach(btn => btn.addEventListener('click', e => {
-           const fmt = f.formats.find(x => x.id == e.currentTarget.dataset.id);
-           triggerDownload(new Blob([fmt.buffer], { type: 'font/' + fmt.outExt }), fmt.fileName);
-        }));
-        fg.appendChild(card);
+        card.querySelector('.js-select').onchange = e => {
+          f.selected = e.target.checked;
+          updateCounters();
+        };
+        card.querySelectorAll('.js-dl').forEach(btn => {
+          btn.onclick = () => {
+            const fmt = f.formats.find(x => x.id == btn.dataset.id);
+            if (fmt) {
+              triggerDownload(new Blob([fmt.buffer], { type: 'font/' + fmt.outExt }), fmt.fileName);
+            }
+          };
+        });
+        grid.appendChild(card);
       });
-      if (activeList.length) grid.appendChild(fg);
     }
     
     if (errorList.length) {
-       const errGrp = document.createElement('div');
-       errGrp.className = 'family-group error-group';
-       errGrp.innerHTML = '<div class="family-head"><h3>Could not convert</h3></div><div class="family-grid"></div>';
-       const eg = errGrp.querySelector('.family-grid');
-       errorList.forEach(e => {
-          const card = document.createElement('article'); card.className = 'card is-error';
-          card.innerHTML = '<div class="card-head"><div class="card-title"><div class="card-kicker"><span class="stamp">Couldn\'t convert</span></div><h3 class="card-name">' + esc(baseName(e.origName)) + '</h3></div></div><p class="err-msg">' + esc(e.message) + '<br><span style="color:var(--muted);font-size:12px">' + esc(e.origName) + '</span></p>';
-          eg.appendChild(card);
-       });
-       grid.appendChild(errGrp);
+      const errGrp = document.createElement('div');
+      errGrp.className = 'family-group error-group';
+      errGrp.innerHTML = '<div class="family-head"><h3>Could not convert</h3></div><div class="family-grid"></div>';
+      const eg = errGrp.querySelector('.family-grid');
+      errorList.forEach(e => {
+        const card = document.createElement('article');
+        card.className = 'card is-error';
+        card.innerHTML = `
+          <div class="card-head">
+            <div class="card-title">
+              <div class="card-kicker"><span class="stamp">Couldn't convert</span></div>
+              <h3 class="card-name">${esc(baseName(e.origName))}</h3>
+            </div>
+          </div>
+          <p class="err-msg">${esc(e.message)}<br><span style="color:var(--muted);font-size:12px">${esc(e.origName)}</span></p>
+        `;
+        eg.appendChild(card);
+      });
+      grid.appendChild(errGrp);
     }
     
     if (!activeList.length && !errorList.length) {
-       const none = document.createElement('div');
-       none.className = 'empty dots-ink';
-       none.innerHTML = '<h3>No matches</h3><p>No font names contain "' + esc(state.query) + '".</p>';
-       grid.appendChild(none);
+      const none = document.createElement('div');
+      none.className = 'empty dots-ink';
+      none.innerHTML = '<h3>No matches</h3><p>No font names contain "' + esc(state.query) + '".</p>';
+      grid.appendChild(none);
     }
     
     $('#clear-btn').disabled = false;
